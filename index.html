@@ -11,6 +11,7 @@
 <!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
@@ -704,6 +705,35 @@
 
 <div class="grade-indicator"></div>
 <!-- GRADE SELECTOR OVERLAY -->
+<!-- LOGIN SCREEN -->
+<div id="login-screen" style="position:fixed;inset:0;background:var(--bg);z-index:10000;display:flex;align-items:center;justify-content:center;font-family:'Cairo',sans-serif">
+  <div style="text-align:center;max-width:380px;width:90%;padding:20px">
+    <div style="font-size:52px;margin-bottom:16px">⚗️</div>
+    <h1 style="font-size:24px;font-weight:900;margin-bottom:6px">Dr. Alaa Saber</h1>
+    <p style="color:var(--text3);font-size:14px;margin-bottom:32px">نظام إدارة السنتر</p>
+
+    <div id="login-error" style="display:none;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:var(--danger);border-radius:10px;padding:10px 14px;font-size:13px;margin-bottom:16px"></div>
+
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <!-- Google Login -->
+      <button onclick="loginWithGoogle()"
+        style="padding:14px 20px;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:14px;cursor:pointer;font-family:'Cairo',sans-serif;color:var(--text);font-size:15px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:10px;transition:all 0.2s"
+        onmouseover="this.style.background='rgba(255,255,255,0.1)'"
+        onmouseout="this.style.background='rgba(255,255,255,0.05)'">
+        <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20H24v8h11.3C33.6 33.3 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.7 1.1 7.8 2.9l5.7-5.7C33.7 6.5 29.1 4.5 24 4.5 12.7 4.5 3.5 13.7 3.5 25S12.7 45.5 24 45.5c11 0 20.5-8 20.5-20.5 0-1.4-.1-2.7-.4-4z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.5 15.1 18.9 12 24 12c3 0 5.7 1.1 7.8 2.9l5.7-5.7C33.7 6.5 29.1 4.5 24 4.5c-7.7 0-14.3 4.4-17.7 10.2z"/><path fill="#4CAF50" d="M24 45.5c5 0 9.6-1.7 13.1-4.6l-6.1-5.1C29.1 37.5 26.6 38.5 24 38.5c-5.2 0-9.5-2.7-11.3-6.7l-6.6 5.1C9.7 41.1 16.4 45.5 24 45.5z"/><path fill="#1565C0" d="M43.6 20H24v8h11.3c-.8 2.3-2.3 4.2-4.3 5.5l6.1 5.1C40.9 35.4 44 30.6 44 25c0-1.4-.1-2.7-.4-4z"/></svg>
+        تسجيل الدخول بـ Google
+      </button>
+
+
+    </div>
+
+    <div id="login-loading" style="display:none;margin-top:20px;color:var(--text3);font-size:13px">
+      <div style="width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 8px"></div>
+      جارٍ تسجيل الدخول...
+    </div>
+  </div>
+</div>
+
 <div id="grade-selector-overlay" style="position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center;font-family:'Cairo',sans-serif">
   <div style="text-align:center;max-width:440px;width:90%;padding:20px">
     <div style="font-size:52px;margin-bottom:16px">⚗️</div>
@@ -1252,7 +1282,24 @@
     </div>
 
     <!-- ===== SETTINGS ===== -->
-    <div class="page" id="page-settings">
+      <!-- Logout -->
+      <div class="card" style="border-color:rgba(239,68,68,0.2);margin-top:20px">
+        <div class="card-header">
+          <div class="card-title">🔐 الحساب</div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0">
+          <div>
+            <div style="font-size:13px;font-weight:700" id="current-user-email">—</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:2px">الحساب الحالي</div>
+          </div>
+          <button onclick="logOut()" style="padding:10px 20px;background:rgba(239,68,68,0.1);color:var(--danger);border:1px solid rgba(239,68,68,0.3);border-radius:10px;font-family:'Cairo',sans-serif;font-size:13px;font-weight:700;cursor:pointer;transition:all 0.2s" onmouseover="this.style.background='var(--danger)';this.style.color='#fff'" onmouseout="this.style.background='rgba(239,68,68,0.1)';this.style.color='var(--danger)'">
+            🚪 تسجيل الخروج
+          </button>
+        </div>
+      </div>
+    </div>
+
+<div class="page" id="page-settings">
       <div class="two-col">
         <div class="card">
           <div class="card-header"><div class="card-title">⚙️ إعدادات السنتر</div></div>
@@ -1564,6 +1611,8 @@ function initFirebase() {
   }
   try {
     if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    // Init auth if not done yet
+    if (!auth && firebase.auth) initAuth();
     db = firebase.database();
     // Use current grade if already selected, otherwise general
     const gradeKey = currentGrade || 'general';
@@ -1639,6 +1688,80 @@ function refreshCurrentPage() {
   else if (pageId === 'reports')  renderReports();
   else if (pageId === 'notifications') renderNotifications();
 }
+// ============================================================
+//  FIREBASE AUTH
+// ============================================================
+let auth = null;
+let currentUser = null;
+
+function initAuth() {
+  try {
+    auth = firebase.auth();
+
+    const ALLOWED = ['dralaasaberassistant1@gmail.com', 'dralaasaberassistant2@gmail.com'];
+
+    auth.onAuthStateChanged(user => {
+      currentUser = user;
+      const loginScreen = document.getElementById('login-screen');
+
+      if (user) {
+        const email = user.email || '';
+        if (!ALLOWED.includes(email)) {
+          // Not authorized — sign out
+          auth.signOut();
+          showLoginError('⛔ هذا الحساب غير مصرح له بالدخول');
+          if (loginScreen) loginScreen.style.display = 'flex';
+          showLoginLoading(false);
+          return;
+        }
+        // Authorized — proceed
+        if (loginScreen) loginScreen.style.display = 'none';
+        // Show user email
+        const emailEl = document.getElementById('current-user-email');
+        if (emailEl) emailEl.textContent = email;
+        const savedGrade = localStorage.getItem('chm-current-grade');
+        if (savedGrade) selectGrade(savedGrade);
+        initFirebase();
+      } else {
+        if (loginScreen) loginScreen.style.display = 'flex';
+      }
+    });
+  } catch(e) {
+    console.error('Auth error:', e);
+    // Fallback: hide login and continue
+    const loginScreen = document.getElementById('login-screen');
+    if (loginScreen) loginScreen.style.display = 'none';
+    initFirebase();
+  }
+}
+
+function loginWithGoogle() {
+  if (!auth) { showLoginError('Firebase غير متاح، جرب تحديث الصفحة'); return; }
+  showLoginLoading(true);
+  const provider = new firebase.auth.GoogleAuthProvider();
+  auth.signInWithPopup(provider).catch(err => {
+    showLoginLoading(false);
+    showLoginError('فشل تسجيل الدخول: ' + err.message);
+  });
+}
+
+
+
+function showLoginError(msg) {
+  const el = document.getElementById('login-error');
+  if (el) { el.textContent = msg; el.style.display = 'block'; }
+}
+
+function showLoginLoading(show) {
+  const el = document.getElementById('login-loading');
+  if (el) el.style.display = show ? 'block' : 'none';
+}
+
+function logOut() {
+  if (auth) auth.signOut();
+  localStorage.removeItem('chm-current-grade');
+}
+
 // ============================================================
 //  GRADE & CENTER MANAGEMENT
 // ============================================================
@@ -4755,17 +4878,10 @@ renderDashboard();
 
 // Start Firebase after page loads
 window.addEventListener('load', () => {
-  // Check if grade was previously selected — do this FIRST before Firebase
-  const savedGrade = localStorage.getItem('chm-current-grade');
-  if (savedGrade) {
-    selectGrade(savedGrade);
-  }
-  // else overlay stays visible until user picks a grade
-
-  // Start Firebase in background
-  initFirebase();
   // Init center datalist
   setTimeout(updateCenterDatalist, 200);
+  // Start Firebase + Auth
+  initFirebase();
 });
 
 // Auto-refresh dashboard every 30 seconds
