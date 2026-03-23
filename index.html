@@ -2503,7 +2503,7 @@ function makeAttRow(s, status) {
         ${s.isGuest ? '<span style="font-size:10px;background:rgba(168,85,247,0.15);color:#a855f7;padding:1px 6px;border-radius:4px;font-weight:700">🔄 تعويض</span>' : ''}
       </div>
       ${s.pinnedNote ? `<div style="font-size:11px;color:var(--warn);margin-top:3px;background:rgba(245,158,11,0.08);padding:2px 8px;border-radius:6px;border:1px solid rgba(245,158,11,0.2)">📌 ${s.pinnedNote}</div>` : ''}
-      ${lastAbsenceNote && !isAbsent && !s.isGuest ? `<div style="font-size:11px;color:var(--text3);margin-top:2px;background:rgba(100,116,139,0.1);padding:2px 8px;border-radius:6px">⚠️ ${lastAbsenceNote}</div>` : ''}
+      ${lastAbsenceNote !== null && !isAbsent && !s.isGuest ? `<div style="font-size:12px;margin-top:3px;display:inline-flex;align-items:center;gap:5px;background:rgba(239,68,68,0.08);padding:2px 10px;border-radius:6px;border:1px solid rgba(239,68,68,0.2)"><span>‼️</span><span style="color:var(--danger);font-weight:700;font-size:11px">غاب الحصة اللي فاتت${lastAbsenceNote ? ' — ' + lastAbsenceNote : ''}</span></div>` : ''}
     </td>
     <td style="text-align:center">
       <span style="font-size:13px;font-weight:700;color:${absences > 0 ? 'var(--danger)' : 'var(--text3)'}">${absences}</span>
@@ -2755,14 +2755,20 @@ function saveAttNote(code, value) {
 }
 
 function getLastAbsenceNote(code) {
-  // Find the session DIRECTLY BEFORE the current one
-  const idx = state.sessions.findIndex(s => s.id === state.currentSession);
-  if (idx <= 0) return null; // no previous session
+  // Find the session DIRECTLY BEFORE the current one (same center)
+  const session = state.sessions.find(s => s.id === state.currentSession);
+  const sessionCenter = session?.center || '';
+  // Get all sessions for this center sorted
+  const centerSessions = state.sessions.filter(s =>
+    sessionCenter ? s.center === sessionCenter : !s.center
+  );
+  const idx = centerSessions.findIndex(s => s.id === state.currentSession);
+  if (idx <= 0) return null;
 
-  const prevSession = state.sessions[idx - 1];
-  // Only show note if student was absent in that previous session AND has a note
+  const prevSession = centerSessions[idx - 1];
   if (state.attendance[prevSession.id]?.[code] === 'absent') {
-    return state.attendance[prevSession.id + '_notes']?.[code] || null;
+    // Return note if exists, otherwise return empty string to indicate was absent
+    return state.attendance[prevSession.id + '_notes']?.[code] ?? '';
   }
   return null;
 }
