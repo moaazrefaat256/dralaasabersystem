@@ -2849,7 +2849,7 @@ function updateAttStats() {
 
   const pc = document.getElementById('present-count'); if(pc) pc.textContent = present;
   const ac = document.getElementById('absent-count');  if(ac) ac.textContent = absent;
-  const cc = document.getElementById('comp-count');    if(cc) cc.textContent = compVisitorCount;
+  const cc = document.getElementById('comp-count');    if(cc) cc.textContent = compOutCount + compVisitorCount;
 
   const psc = document.getElementById('present-section-count');
   const asc = document.getElementById('absent-section-count');
@@ -4485,19 +4485,13 @@ function showWAModal(messages, ref) {
           <div style="font-weight:700;font-size:14px">${s.name} <span style="font-family:monospace;font-size:11px;color:var(--text3)">${s.code}</span></div>
           <div style="font-size:12px;color:var(--text3);margin-top:3px">${m.msg}</div>
           <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
-            ${s.phone ? `<button class="btn btn-success btn-sm" onclick="sendSingleWA(${i},'phone')" id="wa-btn-${i}-phone" style="background:linear-gradient(135deg,#0ea5e9,#0284c7);color:#fff">
-              📲 الطالب ${s.phone}
-            </button>` : ''}
             ${s.father ? `<button class="btn btn-success btn-sm" onclick="sendSingleWA(${i},'father')" id="wa-btn-${i}-father">
               📲 الأب ${s.father}
             </button>` : ''}
             ${s.mother ? `<button class="btn btn-success btn-sm" onclick="sendSingleWA(${i},'mother')" id="wa-btn-${i}-mother" style="background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff">
               📲 الأم ${s.mother}
             </button>` : ''}
-            <button class="btn btn-secondary btn-sm" onclick="sendQRWhatsApp(${i})" id="wa-btn-${i}-qr" title="إرسال QR الطالب" style="font-size:11px">
-              📱 QR
-            </button>
-            ${!hasParents && !s.phone ? `<span style="font-size:12px;color:var(--danger)">⚠️ لا يوجد أرقام</span>` : ''}
+            ${!hasParents ? `<span style="font-size:12px;color:var(--danger)">⚠️ لا يوجد أرقام</span>` : ''}
           </div>
         </div>
         <div id="wa-check-${i}" style="font-size:22px;opacity:0.2">✅</div>
@@ -4510,23 +4504,9 @@ function showWAModal(messages, ref) {
 
 let waSentCount = 0;
 
-function sendQRWhatsApp(idx) {
-  const m = waMessages[idx];
-  const s = m.student;
-  // Build QR as a WhatsApp-friendly link message
-  const qrMsg = `📱 *QR Code — Dr. Alaa Saber*\n\nالطالب: *${s.name}*\nالكود: ${s.code}\n\n🔗 رابط حضور الطالب:\nhttps://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(s.code)}&size=300x300`;
-  const numbers = [s.phone, s.father, s.mother].filter(Boolean);
-  if (!numbers.length) { showToast('لا يوجد أرقام لهذا الطالب', 'error'); return; }
-  // Send to first available number
-  sendWhatsApp(numbers[0], qrMsg);
-  const btn = document.getElementById(`wa-btn-${idx}-qr`);
-  if (btn) { btn.textContent = '✅ QR'; btn.disabled = true; btn.style.opacity = '0.6'; }
-  showToast(`📱 تم إرسال QR لـ ${s.name}`, 'success');
-}
-
 function sendSingleWA(idx, parent) {
   const m = waMessages[idx];
-  const phone = parent === 'phone' ? m.student.phone : parent === 'father' ? m.student.father : m.student.mother;
+  const phone = parent === 'father' ? m.student.father : m.student.mother;
   if (!phone) return;
   sendWhatsApp(phone, m.msg);
 
@@ -4534,15 +4514,13 @@ function sendSingleWA(idx, parent) {
   const btn = document.getElementById(`wa-btn-${idx}-${parent}`);
   if (btn) { btn.textContent = '✅ تم الفتح'; btn.disabled = true; btn.style.opacity = '0.6'; }
 
-  // Check if all relevant contacts for this student are sent → mark row green
+  // Check if all parents for this student are sent → mark row green
   const row = document.getElementById(`wa-item-${idx}`);
-  const phBtn = document.getElementById(`wa-btn-${idx}-phone`);
   const fBtn = document.getElementById(`wa-btn-${idx}-father`);
   const mBtn = document.getElementById(`wa-btn-${idx}-mother`);
-  const phDone = !m.student.phone || phBtn?.disabled;
   const fDone = !m.student.father || fBtn?.disabled;
   const mDone = !m.student.mother || mBtn?.disabled;
-  if (phDone && fDone && mDone) {
+  if (fDone && mDone) {
     row.style.borderColor = 'var(--accent3)';
     row.style.background = 'rgba(16,185,129,0.05)';
     document.getElementById(`wa-check-${idx}`).style.opacity = '1';
@@ -4555,12 +4533,11 @@ function sendSingleWA(idx, parent) {
 
 function sendAllWA() {
   waMessages.forEach((m, i) => {
-    const delay = i * 1000;
-    if (m.student.phone)  setTimeout(() => sendSingleWA(i, 'phone'),  delay);
-    if (m.student.father) setTimeout(() => sendSingleWA(i, 'father'), delay + 400);
-    if (m.student.mother) setTimeout(() => sendSingleWA(i, 'mother'), delay + 800);
+    const delay = i * 800;
+    if (m.student.father) setTimeout(() => sendSingleWA(i, 'father'), delay);
+    if (m.student.mother) setTimeout(() => sendSingleWA(i, 'mother'), delay + 400);
   });
-  showToast('📲 جارٍ فتح واتساب لكل المستلمين...', 'info');
+  showToast('📲 جارٍ فتح واتساب لكل ولي أمر...', 'info');
 }
 
 function editStudent(code) {
