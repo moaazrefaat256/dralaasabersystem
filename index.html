@@ -1080,7 +1080,12 @@
             <div class="card-title">كشف الحضور</div>
             <div class="card-subtitle" id="current-session-label">اختر محاضرة أولاً</div>
           </div>
-          <div style="display:flex;gap:8px">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <div class="search-wrap">
+              <span class="search-icon">🔍</span>
+              <input type="text" id="att-search" placeholder="ابحث باسم أو كود..." oninput="renderAttGrid()" style="width:180px;padding-right:38px;font-size:13px">
+            </div>
+            <button id="att-sort-btn" class="btn btn-secondary btn-sm" onclick="toggleAttSort()" title="تبديل ترتيب الطلاب">🔢 ترتيب بالكود</button>
             <button class="btn btn-secondary btn-sm" onclick="markAllPresent()">✅ تحضير الكل</button>
             <button class="btn btn-secondary btn-sm" onclick="markAllAbsent()">❌ تغيب الكل</button>
             <button class="btn btn-primary btn-sm" onclick="saveAttendance()">💾 حفظ وإرسال الإشعارات</button>
@@ -1628,6 +1633,16 @@ function initFirebase() {
       const data = snapshot.val();
       if (data) {
         state = { ...state, ...data };
+        // Restore original insertion order (Firebase may reorder array keys by code)
+        if (Array.isArray(state.students)) {
+          // Assign _idx to any old students that don't have it yet, based on their current position
+          let needsSave = false;
+          state.students.forEach((s, i) => {
+            if (!s._idx) { s._idx = i + 1; needsSave = true; }
+          });
+          state.students.sort((a, b) => (a._idx || 0) - (b._idx || 0));
+          if (needsSave) setTimeout(() => saveState(), 500);
+        }
         firebaseReady = true;
         refreshCurrentPage();
         updateBadge();
@@ -1651,7 +1666,18 @@ function initFirebase() {
         dataRef = db.ref('center-data/' + currentGrade);
         dataRef.on('value', snap => {
           const d = snap.val();
-          if (d) { const { settings, ...rest } = d; state = { ...state, ...rest }; }
+          if (d) {
+            const { settings, ...rest } = d;
+            state = { ...state, ...rest };
+            if (Array.isArray(state.students)) {
+              let needsSave = false;
+              state.students.forEach((s, i) => {
+                if (!s._idx) { s._idx = i + 1; needsSave = true; }
+              });
+              state.students.sort((a, b) => (a._idx || 0) - (b._idx || 0));
+              if (needsSave) setTimeout(() => saveState(), 500);
+            }
+          }
           updateBadge(); refreshCurrentPage(); showSyncStatus('live');
         });
       }
@@ -1839,13 +1865,16 @@ function selectGrade(grade) {
         // Merge carefully — don't overwrite settings
         const { settings, ...rest } = data;
         state = { ...state, ...rest };
+        // Restore original insertion order
+        if (Array.isArray(state.students)) {
+          let needsSave = false;
+          state.students.forEach((s, i) => {
+            if (!s._idx) { s._idx = i + 1; needsSave = true; }
+          });
+          state.students.sort((a, b) => (a._idx || 0) - (b._idx || 0));
+          if (needsSave) setTimeout(() => saveState(), 500);
+        }
       }
-      updateBadge();
-      refreshCurrentPage();
-      showSyncStatus('live');
-    }, () => {
-      showSyncStatus('offline');
-    });
   } else {
     // No Firebase — try localStorage backup
     try {
@@ -2036,7 +2065,8 @@ function addStudent() {
     }
   }
 
-  state.students.push({ name, code, phone, father, mother, center });
+  const _idx = Date.now() + Math.random(); // unique insertion order key
+  state.students.push({ name, code, phone, father, mother, center, _idx });
 
   // Add as absent in all existing sessions
   state.sessions.forEach(session => {
@@ -2091,6 +2121,19 @@ function confirmDeleteStudent(code) {
   renderStudents();
   updateBadge();
   showToast('تم حذف الطالب', 'info');
+}
+
+let attSortByCode = false;
+
+function toggleAttSort() {
+  attSortByCode = !attSortByCode;
+  const btn = document.getElementById('att-sort-btn');
+  if (btn) {
+    btn.textContent = attSortByCode ? '📋 الترتيب الأصلي' : '🔢 ترتيب بالكود';
+    btn.style.borderColor = attSortByCode ? 'var(--accent)' : '';
+    btn.style.color = attSortByCode ? 'var(--accent)' : '';
+  }
+  renderAttGrid();
 }
 
 function filterStudents() {
@@ -2253,7 +2296,8 @@ function handleExcelUpload(e) {
           phone:  row[2] ? String(row[2]) : '',
           father: row[3] ? String(row[3]) : '',
           mother: row[4] ? String(row[4]) : '',
-          center: row[5] ? String(row[5]).trim() : ''
+          center: row[5] ? String(row[5]).trim() : '',
+          _idx:   Date.now() + added  // preserve row order within the upload
         };
         state.students.push(newStudent);
         // Add as absent in all existing sessions
@@ -2527,6 +2571,7 @@ function makeAttRow(s, status) {
         <button class="btn btn-sm ${isAbsent ? 'btn-success' : 'btn-secondary'}" onclick="markStudent('${s.code}','present')" style="${!isAbsent ? 'opacity:0.4' : ''}">✅ حضر</button>
         <button class="btn btn-sm ${!isAbsent ? 'btn-danger' : 'btn-secondary'}" onclick="markStudent('${s.code}','absent')" style="${isAbsent ? 'opacity:0.4' : ''}">❌ غاب</button>
         ${isAbsent ? `<button class="btn btn-sm" onclick="sendAbsenceWA('${s.code}')" style="background:rgba(37,211,102,0.15);color:#25d366;border:1px solid rgba(37,211,102,0.3);font-size:11px">📲 غياب</button>` : `<button class="btn btn-sm" onclick="sendQuizWA('${s.code}')" style="background:rgba(0,212,255,0.1);color:var(--accent);border:1px solid rgba(0,212,255,0.2);font-size:11px">📲 كويز</button>`}
+        <button class="btn btn-sm" onclick="showQRShareMenu('${s.code}')" title="إرسال QR" style="background:rgba(168,85,247,0.12);color:#a855f7;border:1px solid rgba(168,85,247,0.3);font-size:11px">📷 QR</button>
       </div>
     </td>
   </tr>`;
@@ -2557,17 +2602,20 @@ function renderAttGrid() {
   const session = state.sessions.find(s => s.id === state.currentSession);
   const sessionCenter = session?.center || '';
 
-  // Students belonging to this session's center
-  const centerStudents = sessionCenter
+  // Students belonging to this session's center — keep original insertion order by default
+  let centerStudents = sessionCenter
     ? state.students.filter(s => s.center === sessionCenter && !s.isGuest)
     : state.students.filter(s => !s.isGuest);
 
-  // Guest/compensation students: stored in attendance.guests
-  const guestsMap = state.attendance['guests'] || {};
+  if (attSortByCode) {
+    centerStudents = [...centerStudents].sort((a, b) => parseInt(a.code) - parseInt(b.code));
+  }
+
+  // Guest/compensation students: stored per-session
+  const guestsMap = state.attendance['guests_' + state.currentSession] || {};
   const allPresentCodes = Object.keys(sessionData).filter(c => sessionData[c] === 'present');
   const guestStudents = allPresentCodes
     .filter(code => {
-      // Is this a guest? Either in guestsMap OR has تعويض note but not in centerStudents
       const notInCenter = !centerStudents.find(s => s.code === code);
       if (!notInCenter) return false;
       return guestsMap[code] || (sessionNotes[code] || '').includes('تعويض');
@@ -2585,11 +2633,16 @@ function renderAttGrid() {
   const relevantStudents = [...centerStudents, ...guestStudents];
   // Exclude compensating students from absent list (they're shown as guests in present)
   const sessionNotesForFilter = state.attendance[state.currentSession + '_notes'] || {};
-  const presentStudents = relevantStudents.filter(s => (sessionData[s.code] || 'absent') === 'present');
+
+  // Apply search filter if present
+  const attSearchVal = (document.getElementById('att-search')?.value || '').trim().toLowerCase();
+  const matchSearch = (s) => !attSearchVal || s.name.toLowerCase().includes(attSearchVal) || s.code.includes(attSearchVal);
+
+  const presentStudents = relevantStudents.filter(s => (sessionData[s.code] || 'absent') === 'present' && matchSearch(s));
   const absentStudents  = centerStudents.filter(s => {
     if ((sessionData[s.code] || 'absent') !== 'absent') return false;
     const note = sessionNotesForFilter[s.code] || '';
-    return !note.includes('تعويض'); // exclude if compensating elsewhere
+    return !note.includes('تعويض') && matchSearch(s);
   });
 
   const tableHeader = `<table style="width:100%;min-width:600px;border-collapse:collapse;font-size:13px">
@@ -2649,7 +2702,7 @@ function markCompensation(code) {
         style="flex:1;padding:10px;background:linear-gradient(135deg,#a855f7,#7c3aed);color:#fff;border:none;border-radius:10px;font-family:Cairo,sans-serif;font-weight:700;cursor:pointer;font-size:13px">
         ✅ تسجيل
       </button>
-      <button onclick="document.getElementById('comp-toast').remove()"
+      <button onclick="document.getElementById('comp-toast').remove();scanPaused=false;setTimeout(()=>{if(scanStream)requestAnimationFrame(tick);},100);"
         style="padding:10px 14px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:10px;font-family:Cairo,sans-serif;font-weight:700;cursor:pointer;font-size:13px">
         إلغاء
       </button>
@@ -2669,6 +2722,8 @@ function confirmCompensation(code) {
 
   const el = document.getElementById('comp-toast');
   if (el) el.remove();
+  scanPaused = false;
+  setTimeout(() => { if (scanStream) requestAnimationFrame(tick); }, 100);
 
   if (!state.currentSession) { showToast('اختر محاضرة أولاً', 'error'); return; }
   if (!state.attendance[state.currentSession]) state.attendance[state.currentSession] = {};
@@ -2776,15 +2831,26 @@ function getLastAbsenceNote(code) {
 function sendAbsenceWA(code) {
   const s = state.students.find(st => st.code === code);
   if (!s) return;
-  if (!s.father && !s.mother) { showToast('لا يوجد أرقام لهذا الطالب', 'error'); return; }
+  if (!s.father && !s.mother && !s.phone) { showToast('لا يوجد أرقام لهذا الطالب', 'error'); return; }
   const session = state.sessions.find(se => se.id === state.currentSession);
-  const msg = state.settings.absenceTemplate
+
+  // النوت الحالية للمحاضرة + النوت الدايم
+  const sessionNote = state.currentSession
+    ? (state.attendance[state.currentSession + '_notes']?.[code] || '')
+    : '';
+  const pinnedNote = s.pinnedNote || '';
+
+  let msg = state.settings.absenceTemplate
     .replace(/{name}/g, s.name)
     .replace(/{code}/g, s.code)
     .replace(/{session}/g, session?.name || '')
     .replace(/{date}/g, session?.date || '')
-    .replace(/{absences}/g, getStudentAbsences(s.code))
-    + '\n\n📊 متابعة الطالب: ' + parentLink2;
+    .replace(/{absences}/g, getStudentAbsences(s.code));
+
+  // ضيف النوت لو موجودة
+  const notes = [pinnedNote, sessionNote].filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i);
+  if (notes.length) msg += '\n\n📝 *ملاحظة:* ' + notes.join(' | ');
+
   showWAModal([{ student: s, msg }], `غياب ${s.name}`);
 }
 
@@ -2819,7 +2885,7 @@ function updateAttStats() {
     : state.students.filter(s => !s.isGuest);
 
   // Separate: compensation visitors vs home students who compensated OUT
-  const guestsMap = state.attendance['guests'] || {};
+  const guestsMap = (state.attendance['guests_' + (state.currentSession||'')] || {});
 
   // Visitors = students from OTHER centers who came here
   const compVisitorCount = Object.keys(data).filter(code => {
@@ -2950,7 +3016,7 @@ function showCompensationDialog(code, student) {
         style="flex:1;padding:10px;background:linear-gradient(135deg,#a855f7,#7c3aed);color:#fff;border:none;border-radius:10px;font-family:Cairo,sans-serif;font-weight:700;cursor:pointer;font-size:13px">
         ✅ تسجيل تعويض
       </button>
-      <button onclick="document.getElementById('comp-dialog').remove();document.getElementById('qr-input').value=''"
+      <button onclick="document.getElementById('comp-dialog').remove();document.getElementById('qr-input').value='';scanPaused=false;setTimeout(()=>{if(scanStream)requestAnimationFrame(tick);},100);"
         style="padding:10px 14px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:10px;font-family:Cairo,sans-serif;font-weight:700;cursor:pointer;font-size:13px">
         إلغاء
       </button>
@@ -2963,6 +3029,8 @@ function showCompensationDialog(code, student) {
 }
 
 function confirmCompDialog(code, name, fromCenter) {
+  scanPaused = false;
+  setTimeout(() => { if (scanStream) requestAnimationFrame(tick); }, 100);
   const noteEl = document.getElementById('comp-dialog-note');
   const extra = noteEl ? noteEl.value.trim() : '';
 
@@ -2981,9 +3049,10 @@ function confirmCompDialog(code, name, fromCenter) {
   if (!state.attendance[noteKey]) state.attendance[noteKey] = {};
   state.attendance[noteKey][code] = 'تعويض من ' + fromCenter + (extra ? ' — ' + extra : '');
 
-  // ── 2. Store guest info ──
-  if (!state.attendance['guests']) state.attendance['guests'] = {};
-  state.attendance['guests'][code] = { name, center: fromCenter, isGuest: true };
+  // ── 2. Store guest info per-session ──
+  const guestKey = 'guests_' + state.currentSession;
+  if (!state.attendance[guestKey]) state.attendance[guestKey] = {};
+  state.attendance[guestKey][code] = { name, center: fromCenter, isGuest: true };
 
   // ── 3. Auto-mark PRESENT in home center's matching session ──
   // Find the home center session the student was absent in
@@ -3132,7 +3201,7 @@ function renderGradesTable(id, filter) {
 
   // Compensation visitors DO appear in visiting center's quiz table
   // So teacher can enter their grade — grade stored in comp_grades for home center
-  const guestsMap = state.attendance['guests'] || {};
+  const guestsMap = (state.attendance['guests_' + (state.currentSession||'')] || {});
   const compVisitors = [];
   if (quiz.session) {
     const sessionNotes = state.attendance[quiz.session + '_notes'] || {};
@@ -3227,7 +3296,7 @@ function collectGrades() {
   }
 
   // Compensation visitors shown in this center's quiz
-  const guestsMap = state.attendance['guests'] || {};
+  const guestsMap = (state.attendance['guests_' + (state.currentSession||'')] || {});
   const compVisitors = [];
   if (quiz.session) {
     const sessionNotes = state.attendance[quiz.session + '_notes'] || {};
@@ -3656,7 +3725,7 @@ function renderRankingReport() {
 function exportReportExcel() {
   const wb = XLSX.utils.book_new();
   const date = new Date().toLocaleDateString('ar-EG').replace(/\//g,'-');
-  const guestsMap = state.attendance['guests'] || {};
+  const guestsMap = (state.attendance['guests_' + (state.currentSession||'')] || {});
 
   // For each session, find which students are compensating (present in another center)
   // key: code → Set of session IDs where they are compensating
@@ -3944,6 +4013,189 @@ function showQRModal(code) {
   openModal('qr-modal');
 }
 
+// ============================================================
+//  QR SHARE — واتساب (صورة أو PDF) + تحميل مباشر
+// ============================================================
+function showQRShareMenu(code) {
+  const student = state.students.find(s => s.code === code);
+  if (!student) return;
+
+  const existing = document.getElementById('qr-share-menu');
+  if (existing) existing.remove();
+
+  // بناء أزرار الأرقام المتاحة
+  const numbers = [];
+  if (student.phone)  numbers.push({ label: '👤 الطالب', phone: student.phone,  color: '#0284c7', border: 'rgba(2,132,199,0.35)' });
+  if (student.father) numbers.push({ label: '👨 الأب',   phone: student.father, color: '#10b981', border: 'rgba(16,185,129,0.35)' });
+  if (student.mother) numbers.push({ label: '👩 الأم',   phone: student.mother, color: '#a855f7', border: 'rgba(168,85,247,0.35)' });
+
+  const noNumbers = !numbers.length;
+
+  const phoneButtons = numbers.map(n => `
+    <div style="border:1px solid ${n.border};border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:7px">
+      <div style="font-size:12px;font-weight:700;color:${n.color}">${n.label} — ${n.phone}</div>
+      <div style="display:flex;gap:6px">
+        <button onclick="sendQRvia('${code}','img','${n.phone}')"
+          style="flex:1;padding:7px 10px;background:rgba(0,212,255,0.1);border:1px solid rgba(0,212,255,0.25);border-radius:8px;cursor:pointer;font-family:Cairo,sans-serif;font-size:12px;font-weight:700;color:var(--accent);transition:all 0.2s"
+          onmouseover="this.style.background='rgba(0,212,255,0.2)'" onmouseout="this.style.background='rgba(0,212,255,0.1)'">
+          🖼️ صورة
+        </button>
+        <button onclick="sendQRvia('${code}','pdf','${n.phone}')"
+          style="flex:1;padding:7px 10px;background:rgba(168,85,247,0.1);border:1px solid rgba(168,85,247,0.25);border-radius:8px;cursor:pointer;font-family:Cairo,sans-serif;font-size:12px;font-weight:700;color:#a855f7;transition:all 0.2s"
+          onmouseover="this.style.background='rgba(168,85,247,0.2)'" onmouseout="this.style.background='rgba(168,85,247,0.1)'">
+          📄 PDF
+        </button>
+      </div>
+    </div>`).join('');
+
+  const el = document.createElement('div');
+  el.id = 'qr-share-menu';
+  el.style.cssText = 'position:fixed;bottom:24px;left:24px;z-index:9999;background:var(--surface);border:1px solid rgba(168,85,247,0.4);border-radius:16px;padding:18px 20px;font-family:Cairo,sans-serif;box-shadow:0 8px 32px rgba(0,0,0,0.6);display:flex;flex-direction:column;gap:12px;width:300px';
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <div style="font-size:14px;font-weight:900;color:#a855f7">📷 QR — ${student.name}</div>
+      <button onclick="document.getElementById('qr-share-menu').remove()" style="background:var(--surface2);border:none;color:var(--text2);padding:4px 8px;border-radius:6px;cursor:pointer;font-size:13px">✕</button>
+    </div>
+    ${noNumbers
+      ? `<div style="font-size:12px;color:var(--danger);text-align:center;padding:8px">⚠️ لا يوجد أرقام لهذا الطالب</div>`
+      : `<div style="font-size:11px;color:var(--text3)">اختر المستلم ونوع الملف — هيتحمل ويفتح واتساب تلقائياً:</div>
+         ${phoneButtons}`
+    }
+    <div style="border-top:1px solid var(--border);padding-top:10px;display:flex;gap:6px">
+      <button onclick="downloadQRImage('${code}')" style="flex:1;padding:7px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:Cairo,sans-serif;font-size:11px;color:var(--text2)">⬇️ صورة فقط</button>
+      <button onclick="downloadQRPDF('${code}')"  style="flex:1;padding:7px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:Cairo,sans-serif;font-size:11px;color:var(--text2)">⬇️ PDF فقط</button>
+    </div>`;
+  document.body.appendChild(el);
+  setTimeout(() => { if (el.parentNode) el.remove(); }, 20000);
+}
+
+// إرسال QR عبر واتساب — يحمّل الملف ويفتح واتساب في نفس الوقت
+async function sendQRvia(code, type, phone) {
+  const el = document.getElementById('qr-share-menu');
+  if (el) el.remove();
+  const student = state.students.find(s => s.code === code);
+  if (!student || !phone) return;
+
+  showToast('⏳ جارٍ تجهيز الملف...', 'info');
+
+  if (type === 'img') {
+    await downloadQRImage(code);          // يحمّل الصورة
+  } else {
+    await downloadQRPDF(code);            // يفتح PDF للطباعة / تحميل
+  }
+
+  // بعد ثانية — يفتح واتساب بالرقم
+  setTimeout(() => {
+    const typeName = type === 'img' ? 'صورة الـ QR' : 'PDF الـ QR';
+    const msg = `📷 بطاقة QR الطالب — Dr. Alaa Saber\n\n👤 الطالب: *${student.name}*\n🔢 الكود: ${student.code}\n\n${typeName} في المرفقات ⬆️`;
+    sendWhatsApp(phone, msg);
+    showToast('📲 فتح واتساب — ارفق الملف المحمّل', 'success');
+  }, 800);
+}
+
+// ---- توليد canvas للـ QR ----
+function _generateQRCanvas(code, size) {
+  return new Promise(resolve => {
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'position:fixed;left:-9999px;top:-9999px';
+    document.body.appendChild(wrap);
+    new QRCode(wrap, {
+      text: code, width: size, height: size,
+      colorDark: '#000000', colorLight: '#ffffff',
+      correctLevel: QRCode.CorrectLevel.M
+    });
+    setTimeout(() => {
+      const img = wrap.querySelector('img') || wrap.querySelector('canvas');
+      if (!img) { document.body.removeChild(wrap); resolve(null); return; }
+      const canvas = document.createElement('canvas');
+      canvas.width = size; canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, size, size);
+      if (img.tagName === 'CANVAS') {
+        ctx.drawImage(img, 0, 0, size, size);
+        document.body.removeChild(wrap);
+        resolve(canvas);
+      } else {
+        const tryDraw = () => { ctx.drawImage(img, 0, 0, size, size); document.body.removeChild(wrap); resolve(canvas); };
+        if (img.complete) { tryDraw(); return; }
+        img.onload = tryDraw;
+      }
+    }, 300);
+  });
+}
+
+// ---- تحميل صورة PNG ----
+async function downloadQRImage(code) {
+  const student = state.students.find(s => s.code === code);
+  if (!student) return;
+
+  const qrSize = 400, padding = 40, textH = 80;
+  const totalW = qrSize + padding * 2;
+  const totalH = qrSize + padding * 2 + textH;
+
+  const qrCanvas = await _generateQRCanvas(code, qrSize);
+  if (!qrCanvas) { showToast('تعذّر إنشاء QR', 'error'); return; }
+
+  const canvas = document.createElement('canvas');
+  canvas.width = totalW; canvas.height = totalH;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, totalW, totalH);
+  ctx.drawImage(qrCanvas, padding, padding, qrSize, qrSize);
+  ctx.fillStyle = '#111827';
+  ctx.font = 'bold 28px Cairo, Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText(student.name, totalW / 2, qrSize + padding + 40);
+  ctx.fillStyle = '#6b7280';
+  ctx.font = '18px monospace';
+  ctx.fillText(student.code, totalW / 2, qrSize + padding + 68);
+
+  const link = document.createElement('a');
+  link.download = `QR_${student.name}_${student.code}.png`;
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+}
+
+// ---- تحميل / فتح PDF ----
+async function downloadQRPDF(code) {
+  const student = state.students.find(s => s.code === code);
+  if (!student) return;
+
+  const qrCanvas = await _generateQRCanvas(code, 400);
+  if (!qrCanvas) { showToast('تعذّر إنشاء QR', 'error'); return; }
+
+  const imgData = qrCanvas.toDataURL('image/png');
+  const win = window.open('', '_blank');
+  if (!win) { showToast('فعّل النوافذ المنبثقة ثم حاول مرة أخرى', 'error'); return; }
+  win.document.write(`<!DOCTYPE html><html dir="rtl"><head>
+    <meta charset="UTF-8">
+    <title>QR — ${student.name}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@700;900&display=swap" rel="stylesheet">
+    <style>
+      *{margin:0;padding:0;box-sizing:border-box}
+      body{font-family:'Cairo',Arial,sans-serif;background:#fff;display:flex;align-items:center;justify-content:center;min-height:100vh}
+      .card{text-align:center;padding:48px 56px;border:2px solid #e5e7eb;border-radius:20px;display:inline-flex;flex-direction:column;align-items:center;gap:16px}
+      .header{font-size:18px;color:#6b7280;font-weight:700}
+      .qr-img{width:280px;height:280px;border:1px solid #f3f4f6;border-radius:8px}
+      .name{font-size:26px;font-weight:900;color:#111827}
+      .code{font-size:15px;color:#9ca3af;font-family:monospace;letter-spacing:2px}
+      .center{font-size:13px;color:#d1d5db;margin-top:4px}
+      @media print{body{margin:0}}
+    </style>
+  </head><body>
+    <div class="card">
+      <div class="header">Dr. Alaa Saber — بطاقة الطالب</div>
+      <img class="qr-img" src="${imgData}" alt="QR Code">
+      <div class="name">${student.name}</div>
+      <div class="code">${student.code}</div>
+      ${student.center ? `<div class="center">🏫 ${student.center}</div>` : ''}
+    </div>
+    <script>window.onload=()=>window.print()<\/script>
+  </body></html>`);
+  win.document.close();
+}
+
 function printQR() {
   window.print();
 }
@@ -4028,8 +4280,11 @@ function clearAllData() {
 function confirmClearAll() {
   const el = document.getElementById('clear-all-toast');
   if (el) el.remove();
-  state = { students:[], sessions:[], attendance:{}, quizzes:[], grades:{}, notifications:[], settings: state.settings };
+  const savedSettings = state.settings;
+  state = { students:[], sessions:[], attendance:{}, quizzes:[], grades:{}, notifications:[], settings: savedSettings };
+  if (dataRef) dataRef.set(state).catch(()=>{});
   saveState();
+  renderDashboard();
   showPage('dashboard');
   showToast('تم حذف كل البيانات', 'info');
 }
@@ -4279,6 +4534,7 @@ function startCamera() {
 let zxingReader = null;
 let lastScannedCode = '';
 let lastScannedTime = 0;
+let scanPaused = false; // يتجمد السكانر عند dialog التعويض
 const SCAN_COOLDOWN   = 1500; // ms before same code can re-scan
 const ALREADY_COOLDOWN = 800;  // ms before "already registered" repeats
 
@@ -4368,6 +4624,7 @@ function startDecoding() {
 
   function tick() {
     if (!scanStream) return;
+    if (scanPaused) { setTimeout(() => { if (scanStream && !scanPaused) requestAnimationFrame(tick); }, 300); return; }
 
     if (video.readyState >= 2 && video.videoWidth > 0) {
       // Set canvas size once
@@ -4385,9 +4642,12 @@ function startDecoding() {
         // dontInvert is fastest — works for standard QR codes
         const result = jsQR(imgData.data, canvas.width, canvas.height, { inversionAttempts: 'dontInvert' });
         if (result && result.data.trim()) {
+          const wasPaused = scanPaused;
           handleScannedCode(result.data.trim());
-          // Short pause then resume scanning
-          setTimeout(() => { if (scanStream) requestAnimationFrame(tick); }, SCAN_COOLDOWN);
+          // لو السكانر اتوقف بسبب compensation dialog — متكملش، هيرجع manually
+          if (!scanPaused) {
+            setTimeout(() => { if (scanStream && !scanPaused) requestAnimationFrame(tick); }, SCAN_COOLDOWN);
+          }
           return;
         }
       } catch(e) {}
@@ -4435,6 +4695,7 @@ function handleScannedCode(code) {
   if (!student) {
     lastScannedCode = trimmed;
     lastScannedTime = now;
+    scanPaused = true; // أوقف السكانر لحد ما يتاكد
     playBeep(false);
     if (statusEl) statusEl.innerHTML = `<span style="color:#a855f7">🔄 تعويض: ${trimmed}</span>`;
     const any = state.students.find(s => s.code === trimmed);
@@ -4485,13 +4746,16 @@ function showWAModal(messages, ref) {
           <div style="font-weight:700;font-size:14px">${s.name} <span style="font-family:monospace;font-size:11px;color:var(--text3)">${s.code}</span></div>
           <div style="font-size:12px;color:var(--text3);margin-top:3px">${m.msg}</div>
           <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+            ${s.phone ? `<button class="btn btn-sm" onclick="sendSingleWA(${i},'student')" id="wa-btn-${i}-student" style="background:linear-gradient(135deg,#0284c7,#0369a1);color:#fff">
+              📲 الطالب ${s.phone}
+            </button>` : ''}
             ${s.father ? `<button class="btn btn-success btn-sm" onclick="sendSingleWA(${i},'father')" id="wa-btn-${i}-father">
               📲 الأب ${s.father}
             </button>` : ''}
             ${s.mother ? `<button class="btn btn-success btn-sm" onclick="sendSingleWA(${i},'mother')" id="wa-btn-${i}-mother" style="background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff">
               📲 الأم ${s.mother}
             </button>` : ''}
-            ${!hasParents ? `<span style="font-size:12px;color:var(--danger)">⚠️ لا يوجد أرقام</span>` : ''}
+            ${!hasParents && !s.phone ? `<span style="font-size:12px;color:var(--danger)">⚠️ لا يوجد أرقام</span>` : ''}
           </div>
         </div>
         <div id="wa-check-${i}" style="font-size:22px;opacity:0.2">✅</div>
@@ -4504,23 +4768,28 @@ function showWAModal(messages, ref) {
 
 let waSentCount = 0;
 
-function sendSingleWA(idx, parent) {
+function sendSingleWA(idx, target) {
   const m = waMessages[idx];
-  const phone = parent === 'father' ? m.student.father : m.student.mother;
+  let phone;
+  if (target === 'father') phone = m.student.father;
+  else if (target === 'mother') phone = m.student.mother;
+  else if (target === 'student') phone = m.student.phone;
   if (!phone) return;
   sendWhatsApp(phone, m.msg);
 
   // Mark button as sent
-  const btn = document.getElementById(`wa-btn-${idx}-${parent}`);
+  const btn = document.getElementById(`wa-btn-${idx}-${target}`);
   if (btn) { btn.textContent = '✅ تم الفتح'; btn.disabled = true; btn.style.opacity = '0.6'; }
 
-  // Check if all parents for this student are sent → mark row green
+  // Check if all numbers for this student are sent → mark row green
   const row = document.getElementById(`wa-item-${idx}`);
+  const sBtn = document.getElementById(`wa-btn-${idx}-student`);
   const fBtn = document.getElementById(`wa-btn-${idx}-father`);
   const mBtn = document.getElementById(`wa-btn-${idx}-mother`);
-  const fDone = !m.student.father || fBtn?.disabled;
-  const mDone = !m.student.mother || mBtn?.disabled;
-  if (fDone && mDone) {
+  const sDone = !m.student.phone   || sBtn?.disabled;
+  const fDone = !m.student.father  || fBtn?.disabled;
+  const mDone = !m.student.mother  || mBtn?.disabled;
+  if (sDone && fDone && mDone) {
     row.style.borderColor = 'var(--accent3)';
     row.style.background = 'rgba(16,185,129,0.05)';
     document.getElementById(`wa-check-${idx}`).style.opacity = '1';
@@ -4533,11 +4802,12 @@ function sendSingleWA(idx, parent) {
 
 function sendAllWA() {
   waMessages.forEach((m, i) => {
-    const delay = i * 800;
-    if (m.student.father) setTimeout(() => sendSingleWA(i, 'father'), delay);
-    if (m.student.mother) setTimeout(() => sendSingleWA(i, 'mother'), delay + 400);
+    let delay = 0;
+    if (m.student.phone)   { setTimeout(() => sendSingleWA(i, 'student'), delay); delay += 400; }
+    if (m.student.father)  { setTimeout(() => sendSingleWA(i, 'father'),  delay); delay += 400; }
+    if (m.student.mother)  { setTimeout(() => sendSingleWA(i, 'mother'),  delay); delay += 400; }
   });
-  showToast('📲 جارٍ فتح واتساب لكل ولي أمر...', 'info');
+  showToast('📲 جارٍ فتح واتساب لكل الأرقام...', 'info');
 }
 
 function editStudent(code) {
@@ -4662,11 +4932,24 @@ function buildStudentSummaryMsg(s) {
     return g !== undefined ? '   • ' + q.name + ': ' + g + '/' + q.total : null;
   }).filter(Boolean).join('\n');
 
+  // اجمع كل النوتات — النوت الدايم + آخر نوت محاضرة
+  const pinnedNote = s.pinnedNote || '';
+  const lastSessionNote = (() => {
+    for (let i = state.sessions.length - 1; i >= 0; i--) {
+      const sid = state.sessions[i].id;
+      const note = state.attendance[sid + '_notes']?.[s.code] || '';
+      if (note) return note;
+    }
+    return '';
+  })();
+  const notes = [pinnedNote, lastSessionNote].filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i);
+
   let msg = '📚 *Dr. Alaa Saber*\n';
   msg += '━━━━━━━━━━━━━━━\n';
   msg += '👤 الطالب: *' + s.name + '*\n';
   msg += '🔢 الكود: ' + s.code + '\n';
   if (s.center) msg += '🏫 السنتر: ' + s.center + '\n';
+  if (notes.length) msg += '📌 ملاحظة: ' + notes.join(' | ') + '\n';
   msg += '━━━━━━━━━━━━━━━\n';
   msg += '📅 *الحضور*\n';
   msg += '   • المحاضرات: ' + totalSessions + '\n';
@@ -4705,21 +4988,40 @@ function showMsgPicker(students) {
   // Title
   document.getElementById('msg-picker-title').textContent = isSingle ? `📲 إرسال لـ ${s.name}` : `📲 إرسال لـ ${students.length} طالب`;
 
+  // Filter sessions and quizzes by student's center (if single student or all same center)
+  const studentCenter = isSingle ? (s.center || '') : '';
+  // If all selected students share the same center, filter by it; otherwise show all
+  const allSameCenter = !isSingle && students.every(st => st.center === students[0].center)
+    ? students[0].center || ''
+    : studentCenter;
+  const effectiveCenter = isSingle ? studentCenter : allSameCenter;
+
+  // Filter sessions for this center
+  const pickerSessions = effectiveCenter
+    ? state.sessions.filter(se => (se.center || '') === effectiveCenter)
+    : state.sessions;
+
+  // Filter quizzes: only those linked to sessions of this center (or all if no center)
+  const centerSessionIds = new Set(pickerSessions.map(se => se.id));
+  const pickerQuizzes = effectiveCenter
+    ? state.quizzes.filter(q => !q.sessionId || centerSessionIds.has(q.sessionId))
+    : state.quizzes;
+
   // Quiz row
-  const quizOpts = state.quizzes.map(q => `<option value="${q.id}">${q.name} (/${q.total})</option>`).join('');
+  const quizOpts = pickerQuizzes.map(q => `<option value="${q.id}">${q.name} (/${q.total})</option>`).join('');
   const qRow = document.getElementById('msg-picker-quiz-row');
-  if (qRow) { qRow.style.display = state.quizzes.length ? 'flex' : 'none'; qRow.style.flexDirection = 'column'; }
+  if (qRow) { qRow.style.display = pickerQuizzes.length ? 'flex' : 'none'; qRow.style.flexDirection = 'column'; }
   const qSel = document.getElementById('msg-picker-quiz-select');
   if (qSel) qSel.innerHTML = '<option value="">اختر الكويز</option>' + quizOpts;
 
-  // Session row — always show if sessions exist
+  // Session row
   const sRow = document.getElementById('msg-picker-session-row');
-  if (sRow) { sRow.style.display = state.sessions.length ? 'flex' : 'none'; sRow.style.flexDirection = 'column'; }
+  if (sRow) { sRow.style.display = pickerSessions.length ? 'flex' : 'none'; sRow.style.flexDirection = 'column'; }
   const sSel = document.getElementById('msg-picker-session-select');
   if (sSel) {
-    sSel.innerHTML = '<option value="">اختر المحاضرة</option>' + state.sessions.map(se => `<option value="${se.id}">${se.name} — ${se.date}</option>`).join('');
+    sSel.innerHTML = '<option value="">اختر المحاضرة</option>' + pickerSessions.map(se => `<option value="${se.id}">${se.name} — ${se.date}</option>`).join('');
     // Pre-select last session
-    if (state.sessions.length) sSel.value = state.sessions[state.sessions.length - 1].id;
+    if (pickerSessions.length) sSel.value = pickerSessions[pickerSessions.length - 1].id;
   }
 
   // Reset selection
