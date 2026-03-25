@@ -1049,7 +1049,7 @@
                 <div id="scan-line" style="position:absolute;right:10px;left:10px;height:2px;background:linear-gradient(90deg,transparent,var(--accent),transparent);animation:scanAnim 2s linear infinite;top:50%"></div>
               </div>
             </div>
-            <div id="scan-status" style="font-size:13px;color:var(--text3)">جارٍ البحث عن QR Code...</div>
+            <div id="scan-status" style="font-size:13px;color:var(--text3);width:100%;max-width:320px;padding:0 8px;box-sizing:border-box">جارٍ البحث عن QR Code...</div>
             <button class="btn btn-secondary btn-sm" onclick="closeScanner()">✕ إغلاق الكاميرا</button>
           </div>
         </div>
@@ -2805,7 +2805,10 @@ function getLastAbsenceNote(code) {
   }
 
   if (prevStatus === 'present' && prevNote) {
-    return { type: 'present-note', note: prevNote };
+    // If the note mentions compensation, treat as blue
+    const compWords = ['تعويض', 'عوض'];
+    const isComp = compWords.some(w => prevNote.includes(w));
+    return { type: isComp ? 'compensation' : 'present-note', note: prevNote };
   }
 
   return null;
