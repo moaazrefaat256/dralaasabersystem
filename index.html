@@ -579,19 +579,38 @@
     100% { transform: scale(1); }
   }
 
+  /* ===== LARGE SCREENS (1400px+) ===== */
+  @media (min-width: 1400px) {
+    .sidebar { width: 260px; }
+    .main { margin-right: 260px; }
+    .stats-grid { grid-template-columns: repeat(4, 1fr); }
+    .content { padding: 36px; }
+  }
+
+  /* ===== TABLET LARGE (1100px) ===== */
+  @media (max-width: 1100px) {
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+
   /* ===== TABLET (900px) ===== */
   @media (max-width: 900px) {
     .sidebar { width: 60px; }
-    .sidebar-logo h1, .sidebar-logo p, .nav-item span, .sidebar-footer .teacher-info, .nav-section { display: none; }
+    .sidebar-logo h1, .sidebar-logo p, .nav-item span:not(.icon), .sidebar-footer .teacher-info, .nav-section, .nav-badge { display: none; }
+    .sidebar-logo { padding: 16px 8px; text-align: center; }
+    .sidebar-logo .logo-icon { margin: 0 auto; }
+    .nav-item { justify-content: center; padding: 12px 8px; }
     .main { margin-right: 60px; }
-    .stats-grid { grid-template-columns: 1fr 1fr; }
+    .stats-grid { grid-template-columns: 1fr 1fr; gap: 12px; }
     .two-col { grid-template-columns: 1fr; }
     .three-col { grid-template-columns: 1fr 1fr; }
+    .content { padding: 20px; }
+    .card-header { flex-wrap: wrap; gap: 10px; }
+    .topbar { padding: 14px 20px; }
   }
 
   /* ===== MOBILE (600px) ===== */
   @media (max-width: 600px) {
-    /* Hide sidebar completely — use bottom nav instead */
+    /* Hide sidebar — use bottom nav */
     .sidebar { display: none; }
     .main { margin-right: 0; padding-bottom: 72px; }
 
@@ -609,15 +628,9 @@
       padding: 0 4px;
     }
     .bottom-nav-item {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 2px;
-      padding: 6px 10px;
-      border-radius: 12px;
-      cursor: pointer;
-      flex: 1;
-      transition: all 0.2s;
+      display: flex; flex-direction: column; align-items: center;
+      gap: 2px; padding: 6px 8px; border-radius: 12px;
+      cursor: pointer; flex: 1; transition: all 0.2s;
       font-family: 'Cairo', sans-serif;
     }
     .bottom-nav-item .bn-icon { font-size: 20px; }
@@ -626,78 +639,117 @@
     .bottom-nav-item.active .bn-label { color: var(--accent); }
 
     /* Topbar */
-    .topbar { padding: 12px 16px; }
-    .page-title { font-size: 16px; }
+    .topbar { padding: 10px 14px; }
+    .page-title { font-size: 15px; }
+    .page-subtitle { display: none; }
     .topbar-actions .btn span:not(.icon) { display: none; }
+    .topbar-actions .btn { padding: 8px 10px; }
 
     /* Content */
-    .content { padding: 14px; }
+    .content { padding: 12px; }
 
-    /* Stats */
-    .stats-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
-    .stat-value { font-size: 24px; }
-    .stat-card { padding: 14px; }
+    /* Stats — 2 col on small, 1 col on tiny */
+    .stats-grid { grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+    .stat-value { font-size: 22px; }
+    .stat-card { padding: 12px 10px; }
+    .stat-icon { font-size: 20px; margin-bottom: 6px; }
+    .stat-label { font-size: 11px; }
+    .stat-change { font-size: 10px; }
 
     /* Cards */
-    .card { padding: 16px; border-radius: 12px; }
-    .card-header { flex-direction: column; align-items: flex-start; gap: 10px; }
+    .card { padding: 14px 12px; border-radius: 12px; margin-bottom: 12px; }
+    .card-header { flex-direction: column; align-items: flex-start; gap: 8px; }
     .card-header > div:last-child { width: 100%; display: flex; flex-wrap: wrap; gap: 6px; }
+    .card-title { font-size: 14px; }
 
-    /* Two col → single */
-    .two-col { grid-template-columns: 1fr; }
-    .three-col { grid-template-columns: 1fr; }
-    .form-grid { grid-template-columns: 1fr; }
+    /* Grids */
+    .two-col { grid-template-columns: 1fr; gap: 12px; }
+    .three-col { grid-template-columns: 1fr; gap: 12px; }
+    .form-grid { grid-template-columns: 1fr; gap: 10px; }
 
     /* Tables — horizontal scroll */
-    .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-    table { min-width: 500px; font-size: 12px; }
-    th, td { padding: 10px 10px; }
+    .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 10px; }
+    table { min-width: 480px; font-size: 12px; }
+    th { padding: 10px 8px; font-size: 10px; }
+    td { padding: 10px 8px; font-size: 12px; }
 
     /* Buttons */
-    .btn { padding: 8px 14px; font-size: 12px; }
-    .btn-sm { padding: 6px 10px; font-size: 11px; }
+    .btn { padding: 8px 12px; font-size: 12px; }
+    .btn-sm { padding: 5px 9px; font-size: 11px; }
 
-    /* Attendance grid */
-    .att-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; }
-    .att-card { padding: 12px; }
+    /* Attendance table */
+    .att-grid table { font-size: 11px; min-width: 420px; }
+    .att-grid td, .att-grid th { padding: 8px 6px; }
+    .att-grid input[type="text"] { width: 75px !important; font-size: 11px; padding: 4px 6px !important; }
+    .att-grid .btn-sm { padding: 4px 6px; font-size: 10px; }
 
-    /* Session pills */
-    .session-pills { gap: 6px; }
-    .session-pill { font-size: 11px; padding: 5px 12px; }
+    /* Session pills — scrollable row */
+    .session-pills { gap: 6px; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
+    .session-pill { font-size: 11px; padding: 5px 12px; white-space: nowrap; flex-shrink: 0; }
 
     /* Modals */
-    .modal { padding: 20px; width: 96vw !important; max-height: 90vh; }
-    .modal-title { font-size: 16px; }
+    .modal { padding: 16px; width: 96vw !important; max-height: 92vh; border-radius: 16px; }
+    .modal-title { font-size: 15px; }
+    .modal-header { margin-bottom: 16px; }
 
     /* Inner tabs */
-    .inner-tabs { overflow-x: auto; flex-wrap: nowrap; }
-    .inner-tab { white-space: nowrap; font-size: 12px; padding: 7px 14px; }
+    .inner-tabs { overflow-x: auto; flex-wrap: nowrap; padding: 3px; }
+    .inner-tab { white-space: nowrap; font-size: 11px; padding: 7px 12px; }
 
     /* Report cards */
-    .report-student-card { grid-template-columns: 1fr 1fr; gap: 8px; }
+    .report-student-card { grid-template-columns: 1fr auto; gap: 8px; }
+    .report-stat-val { font-size: 16px; }
 
     /* QR scanner */
-    #scanner-active video { max-height: 240px; }
+    #scanner-active { width: 100%; }
+    #scanner-active video { max-height: 220px; }
+    #scan-status { width: 100% !important; max-width: 100% !important; font-size: 12px; }
 
-    /* Grades search */
-    #grades-search { width: 140px !important; }
-
-    /* Attendance table on mobile */
-    .att-grid table { font-size: 11px; }
-    .att-grid td, .att-grid th { padding: 8px 8px; }
-    .att-grid input[type="text"] { width: 80px !important; font-size: 11px; }
-    .att-grid .btn-sm { padding: 5px 7px; font-size: 10px; }
+    /* Attendance filter row */
+    #att-center-filter { width: 130px !important; font-size: 12px !important; }
 
     /* Upload zone */
-    .upload-zone { padding: 24px; }
-    .upload-zone .upload-icon { font-size: 28px; }
+    .upload-zone { padding: 20px; }
+    .upload-zone .upload-icon { font-size: 26px; }
+    .upload-zone p { font-size: 13px; }
 
     /* Toast */
-    .toast-container { left: 12px; right: 12px; bottom: 76px; }
-    .toast { max-width: 100%; }
+    .toast-container { left: 10px; right: 10px; bottom: 76px; }
+    .toast { max-width: 100%; font-size: 12px; padding: 12px 14px; }
 
     /* Delete confirm toasts */
-    div[id$="-toast"] { left: 12px !important; right: 12px !important; max-width: 100% !important; bottom: 76px !important; }
+    div[id$="-toast"] { left: 10px !important; right: 10px !important; max-width: 100% !important; bottom: 76px !important; }
+
+    /* Notif items */
+    .notif-item { padding: 10px; }
+    .notif-title { font-size: 12px; }
+    .notif-msg { font-size: 11px; }
+
+    /* WhatsApp modal list */
+    #wa-list .btn-sm { font-size: 11px; padding: 5px 8px; }
+
+    /* Message type buttons */
+    .msg-type-btn { padding: 10px 12px; }
+    .msg-type-btn .msg-label { font-size: 13px; }
+    .msg-type-btn .msg-icon { font-size: 18px; }
+  }
+
+  /* ===== TINY MOBILE (380px) ===== */
+  @media (max-width: 380px) {
+    .stats-grid { grid-template-columns: 1fr 1fr; gap: 6px; }
+    .stat-value { font-size: 20px; }
+    .stat-card { padding: 10px 8px; }
+    .content { padding: 10px; }
+    .card { padding: 12px 10px; }
+    .btn { font-size: 11px; padding: 7px 10px; }
+    .btn-sm { font-size: 10px; padding: 4px 7px; }
+    table { min-width: 400px; font-size: 11px; }
+    .bottom-nav-item .bn-label { font-size: 8px; }
+    .bottom-nav-item .bn-icon { font-size: 18px; }
+    .session-pill { font-size: 10px; padding: 4px 10px; }
+    .modal { padding: 14px; }
+    .page-title { font-size: 14px; }
+    .topbar { padding: 8px 12px; }
   }
 </style>
 </head>
@@ -4759,25 +4811,24 @@ function handleScannedCode(code) {
   // Show student info + note input + continue button
   const existingNote = (state.attendance[state.currentSession + '_notes'] || {})[trimmed] || '';
   if (statusEl) statusEl.innerHTML = `
-    <div style="text-align:center">
-      <div style="font-size:18px;font-weight:900;color:var(--accent3)">✅ ${student.name}</div>
+    <div style="text-align:center;width:100%;box-sizing:border-box">
+      <div style="font-size:17px;font-weight:900;color:var(--accent3)">✅ ${student.name}</div>
       <div style="font-size:12px;color:var(--text3);margin-top:2px">${student.code}${student.center ? ' • ' + student.center : ''}</div>
       ${notesHTML}
-      <div style="margin-top:10px;text-align:right">
-        <input id="scan-note-input" type="text" placeholder="📝 نوت الحصة الحالية (اختياري)..."
+      <div style="margin-top:10px;text-align:right;width:100%">
+        <label style="font-size:11px;color:var(--text3);font-weight:700;display:block;margin-bottom:4px;text-align:right">📝 نوت الحصة الحالية</label>
+        <input id="scan-note-input" type="text" placeholder="مثال: مش عامل الواجب، تأخر..."
           value="${existingNote.replace(/"/g,'&quot;')}"
-          style="width:100%;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:10px;padding:8px 12px;color:#fff;font-family:Cairo,sans-serif;font-size:13px;outline:none;text-align:right"
+          style="width:100%;box-sizing:border-box;background:rgba(255,255,255,0.07);border:1.5px solid rgba(255,255,255,0.15);border-radius:10px;padding:9px 12px;color:#fff;font-family:Cairo,sans-serif;font-size:13px;outline:none;text-align:right;display:block"
           onfocus="this.style.borderColor='var(--accent)'"
           onblur="this.style.borderColor='rgba(255,255,255,0.15)'"
           onkeydown="if(event.key==='Enter'){saveScanNote('${trimmed}');resumeScanner();}"
         />
       </div>
-      <div style="display:flex;gap:8px;margin-top:10px;justify-content:center">
-        <button onclick="saveScanNote('${trimmed}');resumeScanner()"
-          style="flex:1;padding:8px 16px;background:var(--accent);color:#000;border:none;border-radius:10px;font-family:'Cairo',sans-serif;font-weight:700;font-size:13px;cursor:pointer">
-          ▶ متابعة
-        </button>
-      </div>
+      <button onclick="saveScanNote('${trimmed}');resumeScanner()"
+        style="width:100%;margin-top:10px;padding:10px 16px;background:linear-gradient(135deg,var(--accent),#0099bb);color:#000;border:none;border-radius:10px;font-family:'Cairo',sans-serif;font-weight:700;font-size:14px;cursor:pointer;box-sizing:border-box">
+        ▶ متابعة
+      </button>
     </div>`;
   // Focus the note input
   setTimeout(() => { const ni = document.getElementById('scan-note-input'); if(ni) ni.focus(); }, 50);
