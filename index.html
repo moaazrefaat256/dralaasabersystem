@@ -4753,20 +4753,57 @@ function handleScannedCode(code) {
     }
   }
 
-  // Show student info + continue button
+  // Show student info + note input + continue button
+  const existingNote = (state.attendance[state.currentSession + '_notes'] || {})[trimmed] || '';
   if (statusEl) statusEl.innerHTML = `
     <div style="text-align:center">
       <div style="font-size:18px;font-weight:900;color:var(--accent3)">✅ ${student.name}</div>
       <div style="font-size:12px;color:var(--text3);margin-top:2px">${student.code}${student.center ? ' • ' + student.center : ''}</div>
       ${notesHTML}
-      <button onclick="resumeScanner()"
-        style="margin-top:10px;padding:8px 24px;background:var(--accent);color:#000;border:none;border-radius:10px;font-family:'Cairo',sans-serif;font-weight:700;font-size:13px;cursor:pointer">
-        ▶ متابعة
-      </button>
+      <div style="margin-top:10px;text-align:right">
+        <input id="scan-note-input" type="text" placeholder="📝 نوت الحصة الحالية (اختياري)..."
+          value="${existingNote.replace(/"/g,'&quot;')}"
+          style="width:100%;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:10px;padding:8px 12px;color:#fff;font-family:Cairo,sans-serif;font-size:13px;outline:none;text-align:right"
+          onfocus="this.style.borderColor='var(--accent)'"
+          onblur="this.style.borderColor='rgba(255,255,255,0.15)'"
+          onkeydown="if(event.key==='Enter'){saveScanNote('${trimmed}');resumeScanner();}"
+        />
+      </div>
+      <div style="display:flex;gap:8px;margin-top:10px;justify-content:center">
+        <button onclick="saveScanNote('${trimmed}');resumeScanner()"
+          style="flex:1;padding:8px 16px;background:var(--accent);color:#000;border:none;border-radius:10px;font-family:'Cairo',sans-serif;font-weight:700;font-size:13px;cursor:pointer">
+          ▶ متابعة
+        </button>
+      </div>
     </div>`;
+  // Focus the note input
+  setTimeout(() => { const ni = document.getElementById('scan-note-input'); if(ni) ni.focus(); }, 50);
 
   const vid = document.getElementById('qr-video');
   if (vid) { vid.style.boxShadow = '0 0 0 5px var(--accent3)'; setTimeout(()=>{ vid.style.boxShadow=''; }, 600); }
+}
+
+function saveScanNote(code) {
+  const input = document.getElementById('scan-note-input');
+  if (!input) return;
+  const val = input.value.trim();
+  const key = state.currentSession + '_notes';
+  if (!state.attendance[key]) state.attendance[key] = {};
+  if (val) {
+    state.attendance[key][code] = val;
+  } else {
+    delete state.attendance[key][code];
+  }
+  saveState();
+  // Update the row in attendance table if visible
+  const row = document.getElementById('att-' + code);
+  if (row) {
+    const s = state.students.find(st => st.code === code);
+    if (s) {
+      const status = state.attendance[state.currentSession]?.[code] || 'present';
+      row.outerHTML = makeAttRow(s, status);
+    }
+  }
 }
 
 function resumeScanner() {
