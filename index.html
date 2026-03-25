@@ -977,7 +977,6 @@
           <div style="display:flex;gap:8px;align-items:center">
             <button class="btn btn-success btn-sm" onclick="sendWhatsAppAll()">📲 إرسال للكل</button>
             <button class="btn btn-danger btn-sm" onclick="deleteAllStudents()">🗑️ حذف الكل</button>
-            <button class="btn btn-secondary btn-sm" id="sort-toggle-btn" onclick="toggleStudentSort()" title="ترتيب الطلاب">🔢 ترتيب بالكود</button>
             <select id="center-filter" onchange="filterStudents()" style="width:160px;font-size:12px;padding:8px 12px">
               <option value="">كل السنترات</option>
             </select>
@@ -1082,11 +1081,9 @@
             <div class="card-subtitle" id="current-session-label">اختر محاضرة أولاً</div>
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-            <div class="search-wrap">
-              <span class="search-icon">🔍</span>
-              <input type="text" id="att-search" placeholder="ابحث باسم أو كود..." oninput="renderAttGrid()" style="width:180px;padding-right:38px;font-size:13px">
-            </div>
-            <button id="att-sort-btn" class="btn btn-secondary btn-sm" onclick="toggleAttSort()" title="تبديل ترتيب الطلاب">🔢 ترتيب بالكود</button>
+            <input type="text" id="att-search" placeholder="🔍 بحث بالاسم أو الكود..." oninput="filterAttGrid()"
+              style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 12px;color:var(--text);font-family:'Cairo',sans-serif;font-size:13px;outline:none;width:190px"
+              onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
             <button class="btn btn-secondary btn-sm" onclick="markAllPresent()">✅ تحضير الكل</button>
             <button class="btn btn-secondary btn-sm" onclick="markAllAbsent()">❌ تغيب الكل</button>
             <button class="btn btn-primary btn-sm" onclick="saveAttendance()">💾 حفظ وإرسال الإشعارات</button>
@@ -2099,31 +2096,6 @@ function confirmDeleteStudent(code) {
   showToast('تم حذف الطالب', 'info');
 }
 
-let studentSortByCode = false;
-let attSortByCode = false;
-
-function toggleStudentSort() {
-  studentSortByCode = !studentSortByCode;
-  const btn = document.getElementById('sort-toggle-btn');
-  if (btn) {
-    btn.textContent = studentSortByCode ? '📋 الترتيب الأصلي' : '🔢 ترتيب بالكود';
-    btn.style.borderColor = studentSortByCode ? 'var(--accent)' : '';
-    btn.style.color = studentSortByCode ? 'var(--accent)' : '';
-  }
-  filterStudents();
-}
-
-function toggleAttSort() {
-  attSortByCode = !attSortByCode;
-  const btn = document.getElementById('att-sort-btn');
-  if (btn) {
-    btn.textContent = attSortByCode ? '📋 الترتيب الأصلي' : '🔢 ترتيب بالكود';
-    btn.style.borderColor = attSortByCode ? 'var(--accent)' : '';
-    btn.style.color = attSortByCode ? 'var(--accent)' : '';
-  }
-  renderAttGrid();
-}
-
 function filterStudents() {
   const q = document.getElementById('student-search').value.toLowerCase();
   const c = document.getElementById('center-filter')?.value || '';
@@ -2144,16 +2116,11 @@ function renderStudents() {
 
 function renderStudentsTable(filter = '', centerFilter = '') {
   const tbody = document.getElementById('students-tbody');
-  let filtered = state.students.filter(s => {
+  const filtered = state.students.filter(s => {
     const matchText = !filter || s.name.includes(filter) || s.code.includes(filter);
     const matchCenter = !centerFilter || s.center === centerFilter;
     return matchText && matchCenter;
   });
-
-  // Sort by code if enabled, otherwise keep original insertion order
-  if (studentSortByCode) {
-    filtered = [...filtered].sort((a, b) => parseInt(a.code) - parseInt(b.code));
-  }
 
   if (!filtered.length) {
     tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:40px">${filter ? 'لا توجد نتائج' : 'لا يوجد طلاب مسجلين'}</td></tr>`;
@@ -2474,6 +2441,9 @@ function addSession() {
 }
 
 function selectSession(id) {
+  // Clear search on session change
+  const searchEl = document.getElementById('att-search');
+  if (searchEl) searchEl.value = '';
   state.currentSession = id;
   document.querySelectorAll('.session-pill').forEach(p => p.classList.remove('active'));
   const pill = document.querySelector(`[data-session="${id}"]`);
@@ -2539,7 +2509,13 @@ function makeAttRow(s, status) {
         ${s.isGuest ? '<span style="font-size:10px;background:rgba(168,85,247,0.15);color:#a855f7;padding:1px 6px;border-radius:4px;font-weight:700">🔄 تعويض</span>' : ''}
       </div>
       ${s.pinnedNote ? `<div style="font-size:11px;color:var(--warn);margin-top:3px;background:rgba(245,158,11,0.08);padding:2px 8px;border-radius:6px;border:1px solid rgba(245,158,11,0.2)">📌 ${s.pinnedNote}</div>` : ''}
-      ${lastAbsenceNote !== null && !isAbsent && !s.isGuest ? `<div style="font-size:12px;margin-top:3px;display:inline-flex;align-items:center;gap:5px;background:rgba(239,68,68,0.08);padding:2px 10px;border-radius:6px;border:1px solid rgba(239,68,68,0.2)"><span>‼️</span><span style="color:var(--danger);font-weight:700;font-size:11px">غاب الحصة اللي فاتت${lastAbsenceNote ? ' — ' + lastAbsenceNote : ''}</span></div>` : ''}
+      ${lastAbsenceNote !== null && !isAbsent && !s.isGuest ? (
+        lastAbsenceNote.type === 'compensation'
+          ? `<div style="font-size:11px;margin-top:3px;display:inline-flex;align-items:center;gap:5px;background:rgba(96,165,250,0.08);padding:2px 10px;border-radius:6px;border:1px solid rgba(96,165,250,0.25)"><span>🔄</span><span style="color:#60a5fa;font-weight:700;font-size:11px">${lastAbsenceNote.note || 'جه تعويض الحصة اللي فاتت'}</span></div>`
+          : lastAbsenceNote.type === 'present-note'
+            ? `<div style="font-size:11px;margin-top:3px;display:inline-flex;align-items:center;gap:5px;background:rgba(16,185,129,0.08);padding:2px 10px;border-radius:6px;border:1px solid rgba(16,185,129,0.25)"><span>📝</span><span style="color:var(--accent3);font-weight:700;font-size:11px">${lastAbsenceNote.note}</span></div>`
+            : `<div style="font-size:11px;margin-top:3px;display:inline-flex;align-items:center;gap:5px;background:rgba(239,68,68,0.08);padding:2px 10px;border-radius:6px;border:1px solid rgba(239,68,68,0.2)"><span>‼️</span><span style="color:var(--danger);font-weight:700;font-size:11px">غاب الحصة اللي فاتت${lastAbsenceNote.note ? ' — ' + lastAbsenceNote.note : ''}</span></div>`
+      ) : ''}
     </td>
     <td style="text-align:center">
       <span style="font-size:13px;font-weight:700;color:${absences > 0 ? 'var(--danger)' : 'var(--text3)'}">${absences}</span>
@@ -2571,6 +2547,10 @@ function makeAttRow(s, status) {
 
 function makeAttCard(s, status) { return makeAttRow(s, status); } // alias kept
 
+function filterAttGrid() {
+  renderAttGrid(); // re-render with search filter applied
+}
+
 function renderAttGrid() {
   const gridPresent = document.getElementById('att-grid-present');
   const gridAbsent  = document.getElementById('att-grid-absent');
@@ -2594,14 +2574,10 @@ function renderAttGrid() {
   const session = state.sessions.find(s => s.id === state.currentSession);
   const sessionCenter = session?.center || '';
 
-  // Students belonging to this session's center — keep original insertion order by default
-  let centerStudents = sessionCenter
+  // Students belonging to this session's center
+  const centerStudents = sessionCenter
     ? state.students.filter(s => s.center === sessionCenter && !s.isGuest)
     : state.students.filter(s => !s.isGuest);
-
-  if (attSortByCode) {
-    centerStudents = [...centerStudents].sort((a, b) => parseInt(a.code) - parseInt(b.code));
-  }
 
   // Guest/compensation students: stored per-session
   const guestsMap = state.attendance['guests_' + state.currentSession] || {};
@@ -2625,16 +2601,11 @@ function renderAttGrid() {
   const relevantStudents = [...centerStudents, ...guestStudents];
   // Exclude compensating students from absent list (they're shown as guests in present)
   const sessionNotesForFilter = state.attendance[state.currentSession + '_notes'] || {};
-
-  // Apply search filter if present
-  const attSearchVal = (document.getElementById('att-search')?.value || '').trim().toLowerCase();
-  const matchSearch = (s) => !attSearchVal || s.name.toLowerCase().includes(attSearchVal) || s.code.includes(attSearchVal);
-
-  const presentStudents = relevantStudents.filter(s => (sessionData[s.code] || 'absent') === 'present' && matchSearch(s));
+  const presentStudents = relevantStudents.filter(s => (sessionData[s.code] || 'absent') === 'present');
   const absentStudents  = centerStudents.filter(s => {
     if ((sessionData[s.code] || 'absent') !== 'absent') return false;
     const note = sessionNotesForFilter[s.code] || '';
-    return !note.includes('تعويض') && matchSearch(s);
+    return !note.includes('تعويض'); // exclude if compensating elsewhere
   });
 
   const tableHeader = `<table style="width:100%;min-width:600px;border-collapse:collapse;font-size:13px">
@@ -2647,13 +2618,22 @@ function renderAttGrid() {
     </tr></thead><tbody>`;
   const tableFooter = `</tbody></table>`;
 
-  gridPresent.innerHTML = presentStudents.length
-    ? tableHeader + presentStudents.map(s => makeAttRow(s, 'present')).join('') + tableFooter
-    : '<div style="color:var(--text3);font-size:13px;padding:12px">لا يوجد</div>';
+  // Apply search filter if active
+  const attQ = (document.getElementById('att-search')?.value || '').trim().toLowerCase();
+  const filteredPresent = attQ
+    ? presentStudents.filter(s => s.name.toLowerCase().includes(attQ) || s.code.includes(attQ))
+    : presentStudents;
+  const filteredAbsent = attQ
+    ? absentStudents.filter(s => s.name.toLowerCase().includes(attQ) || s.code.includes(attQ))
+    : absentStudents;
 
-  gridAbsent.innerHTML = absentStudents.length
-    ? tableHeader + absentStudents.map(s => makeAttRow(s, 'absent')).join('') + tableFooter
-    : '<div style="color:var(--text3);font-size:13px;padding:12px">لا يوجد</div>';
+  gridPresent.innerHTML = filteredPresent.length
+    ? tableHeader + filteredPresent.map(s => makeAttRow(s, 'present')).join('') + tableFooter
+    : '<div style="color:var(--text3);font-size:13px;padding:12px">' + (attQ ? 'لا توجد نتائج' : 'لا يوجد') + '</div>';
+
+  gridAbsent.innerHTML = filteredAbsent.length
+    ? tableHeader + filteredAbsent.map(s => makeAttRow(s, 'absent')).join('') + tableFooter
+    : '<div style="color:var(--text3);font-size:13px;padding:12px">' + (attQ ? 'لا توجد نتائج' : 'لا يوجد') + '</div>';
 
   updateAttStats();
 }
@@ -2813,10 +2793,21 @@ function getLastAbsenceNote(code) {
   if (idx <= 0) return null;
 
   const prevSession = centerSessions[idx - 1];
-  if (state.attendance[prevSession.id]?.[code] === 'absent') {
-    // Return note if exists, otherwise return empty string to indicate was absent
-    return state.attendance[prevSession.id + '_notes']?.[code] ?? '';
+  const prevStatus = state.attendance[prevSession.id]?.[code];
+  const prevNote   = state.attendance[prevSession.id + '_notes']?.[code] || '';
+
+  if (prevStatus === 'absent') {
+    // Check if compensation — note starts with "تعويض من"
+    if (prevNote.startsWith('\u062a\u0639\u0648\u064a\u0636 \u0645\u0646')) {
+      return { type: 'compensation', note: prevNote };
+    }
+    return { type: 'absent', note: prevNote };
   }
+
+  if (prevStatus === 'present' && prevNote) {
+    return { type: 'present-note', note: prevNote };
+  }
+
   return null;
 }
 
@@ -4085,35 +4076,66 @@ async function sendQRvia(code, type, phone) {
   }, 800);
 }
 
-// ---- توليد canvas للـ QR ----
+// ---- توليد canvas للـ QR — موبايل-safe ----
 function _generateQRCanvas(code, size) {
   return new Promise(resolve => {
     const wrap = document.createElement('div');
-    wrap.style.cssText = 'position:fixed;left:-9999px;top:-9999px';
+    wrap.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:' + size + 'px;height:' + size + 'px';
     document.body.appendChild(wrap);
-    new QRCode(wrap, {
+
+    const qr = new QRCode(wrap, {
       text: code, width: size, height: size,
       colorDark: '#000000', colorLight: '#ffffff',
       correctLevel: QRCode.CorrectLevel.M
     });
-    setTimeout(() => {
-      const img = wrap.querySelector('img') || wrap.querySelector('canvas');
-      if (!img) { document.body.removeChild(wrap); resolve(null); return; }
-      const canvas = document.createElement('canvas');
-      canvas.width = size; canvas.height = size;
-      const ctx = canvas.getContext('2d');
+
+    function tryExtract(attempt) {
+      // QRCode.js ممكن يولّد canvas أو img حسب المتصفح
+      const qrCanvas = wrap.querySelector('canvas');
+      const qrImg    = wrap.querySelector('img');
+
+      const out = document.createElement('canvas');
+      out.width = size; out.height = size;
+      const ctx = out.getContext('2d');
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, size, size);
-      if (img.tagName === 'CANVAS') {
-        ctx.drawImage(img, 0, 0, size, size);
-        document.body.removeChild(wrap);
-        resolve(canvas);
+
+      if (qrCanvas) {
+        // تأكد إن الـ canvas فيه بيانات فعلية
+        try {
+          const check = qrCanvas.getContext('2d').getImageData(0, 0, 4, 4);
+          const hasData = check.data.some((v, i) => i % 4 !== 3 && v !== 255);
+          if (!hasData && attempt < 8) { setTimeout(() => tryExtract(attempt + 1), 150); return; }
+          ctx.drawImage(qrCanvas, 0, 0, size, size);
+          document.body.removeChild(wrap);
+          resolve(out);
+        } catch(e) {
+          if (attempt < 8) { setTimeout(() => tryExtract(attempt + 1), 150); return; }
+          document.body.removeChild(wrap);
+          resolve(null);
+        }
+      } else if (qrImg && qrImg.src && qrImg.src.startsWith('data:')) {
+        // img موجود مع data URL — ارسمه
+        const tempImg = new Image();
+        tempImg.onload = () => {
+          ctx.drawImage(tempImg, 0, 0, size, size);
+          document.body.removeChild(wrap);
+          resolve(out);
+        };
+        tempImg.onerror = () => {
+          if (attempt < 8) { setTimeout(() => tryExtract(attempt + 1), 150); return; }
+          document.body.removeChild(wrap); resolve(null);
+        };
+        tempImg.src = qrImg.src;
       } else {
-        const tryDraw = () => { ctx.drawImage(img, 0, 0, size, size); document.body.removeChild(wrap); resolve(canvas); };
-        if (img.complete) { tryDraw(); return; }
-        img.onload = tryDraw;
+        // لسه مش جاهز — جرب تاني
+        if (attempt < 10) { setTimeout(() => tryExtract(attempt + 1), 150); return; }
+        document.body.removeChild(wrap);
+        resolve(null);
       }
-    }, 300);
+    }
+
+    setTimeout(() => tryExtract(0), 100);
   });
 }
 
@@ -4698,14 +4720,89 @@ function handleScannedCode(code) {
   // ── Success ──────────────────────────────────────────
   lastScannedCode = trimmed;
   lastScannedTime = now;
+  scanPaused = true; // pause scanner
+
   markStudent(trimmed, 'present');
   playBeep(true);
 
-  if (statusEl) statusEl.innerHTML =
-    `<span style="font-size:16px;font-weight:900;color:var(--accent3)">✅ ${student.name}</span>`;
+  // Gather all notes for this student
+  const pinnedNote = student.pinnedNote || '';
+  const sessionNote = (state.attendance[state.currentSession + '_notes'] || {})[trimmed] || '';
+
+  // Get last session note (from the session before current one)
+  const lastAbsenceNote = getLastAbsenceNote(trimmed);
+
+  // Build info display
+  let notesHTML = '';
+  if (pinnedNote) notesHTML += `<div style="font-size:12px;color:var(--warn);margin-top:4px">📌 ${pinnedNote}</div>`;
+  // Show last session info with color-coded type
+  if (lastAbsenceNote !== null) {
+    if (lastAbsenceNote.type === 'compensation') {
+      // 🔵 Blue — came as compensation last session
+      notesHTML += `<div style="font-size:12px;color:#60a5fa;margin-top:4px;background:rgba(96,165,250,0.08);padding:3px 10px;border-radius:6px;border:1px solid rgba(96,165,250,0.25)">🔄 ${lastAbsenceNote.note || 'جه تعويض الحصة اللي فاتت'}</div>`;
+    } else if (lastAbsenceNote.type === 'absent') {
+      // 🔴 Red — was absent last session
+      if (lastAbsenceNote.note) {
+        notesHTML += `<div style="font-size:12px;color:var(--danger);margin-top:4px;background:rgba(239,68,68,0.08);padding:3px 10px;border-radius:6px;border:1px solid rgba(239,68,68,0.2)">‼️ نوت الحصة اللي فاتت: <strong>${lastAbsenceNote.note}</strong></div>`;
+      } else {
+        notesHTML += `<div style="font-size:12px;color:var(--danger);margin-top:4px;background:rgba(239,68,68,0.08);padding:3px 10px;border-radius:6px;border:1px solid rgba(239,68,68,0.2)">‼️ غاب الحصة اللي فاتت — مفيش نوت</div>`;
+      }
+    } else if (lastAbsenceNote.type === 'present-note') {
+      // 🟢 Green — was present with a note last session
+      notesHTML += `<div style="font-size:12px;color:var(--accent3);margin-top:4px;background:rgba(16,185,129,0.08);padding:3px 10px;border-radius:6px;border:1px solid rgba(16,185,129,0.25)">📝 نوت الحصة اللي فاتت: <strong>${lastAbsenceNote.note}</strong></div>`;
+    }
+  }
+
+  // Show student info + continue button
+  if (statusEl) statusEl.innerHTML = `
+    <div style="text-align:center">
+      <div style="font-size:18px;font-weight:900;color:var(--accent3)">✅ ${student.name}</div>
+      <div style="font-size:12px;color:var(--text3);margin-top:2px">${student.code}${student.center ? ' • ' + student.center : ''}</div>
+      ${notesHTML}
+      <button onclick="resumeScanner()"
+        style="margin-top:10px;padding:8px 24px;background:var(--accent);color:#000;border:none;border-radius:10px;font-family:'Cairo',sans-serif;font-weight:700;font-size:13px;cursor:pointer">
+        ▶ متابعة
+      </button>
+    </div>`;
+
   const vid = document.getElementById('qr-video');
   if (vid) { vid.style.boxShadow = '0 0 0 5px var(--accent3)'; setTimeout(()=>{ vid.style.boxShadow=''; }, 600); }
-  setTimeout(() => { if (statusEl) statusEl.textContent = 'جارٍ البحث عن QR Code...'; }, 1200);
+}
+
+function resumeScanner() {
+  lastScannedCode = '';
+  lastScannedTime = 0;
+  scanPaused = false;
+  const statusEl = document.getElementById('scan-status');
+  if (statusEl) statusEl.textContent = 'جارٍ البحث عن QR Code...';
+  // Restart the scan tick loop
+  if (scanStream) {
+    const video = document.getElementById('qr-video');
+    const canvas = document.getElementById('qr-canvas');
+    if (video && canvas) {
+      const ctx = canvas.getContext('2d');
+      function tick() {
+        if (!scanStream || scanPaused) return;
+        if (video.readyState >= 2 && video.videoWidth > 0) {
+          const scale = video.videoWidth > 400 ? 400 / video.videoWidth : 1;
+          canvas.width  = Math.floor(video.videoWidth  * scale);
+          canvas.height = Math.floor(video.videoHeight * scale);
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          try {
+            const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const result = jsQR(imgData.data, canvas.width, canvas.height, { inversionAttempts: 'dontInvert' });
+            if (result && result.data.trim()) {
+              handleScannedCode(result.data.trim());
+              if (!scanPaused) setTimeout(() => { if (scanStream && !scanPaused) requestAnimationFrame(tick); }, SCAN_COOLDOWN);
+              return;
+            }
+          } catch(e) {}
+        }
+        requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+    }
+  }
 }
 
 function closeScanner() {
@@ -4976,44 +5073,32 @@ function showMsgPicker(students) {
   msgPickerTargets = students;
   const isSingle = students.length === 1;
   const s = students[0];
+  const studentCenter = s.center || '';
 
   // Title
   document.getElementById('msg-picker-title').textContent = isSingle ? `📲 إرسال لـ ${s.name}` : `📲 إرسال لـ ${students.length} طالب`;
 
-  // Filter sessions and quizzes by student's center (if single student or all same center)
-  const studentCenter = isSingle ? (s.center || '') : '';
-  // If all selected students share the same center, filter by it; otherwise show all
-  const allSameCenter = !isSingle && students.every(st => st.center === students[0].center)
-    ? students[0].center || ''
-    : studentCenter;
-  const effectiveCenter = isSingle ? studentCenter : allSameCenter;
-
-  // Filter sessions for this center
-  const pickerSessions = effectiveCenter
-    ? state.sessions.filter(se => (se.center || '') === effectiveCenter)
-    : state.sessions;
-
-  // Filter quizzes: only those linked to sessions of this center (or all if no center)
-  const centerSessionIds = new Set(pickerSessions.map(se => se.id));
-  const pickerQuizzes = effectiveCenter
-    ? state.quizzes.filter(q => !q.sessionId || centerSessionIds.has(q.sessionId))
-    : state.quizzes;
-
-  // Quiz row
-  const quizOpts = pickerQuizzes.map(q => `<option value="${q.id}">${q.name} (/${q.total})</option>`).join('');
+  // Quiz row — فلتر حسب سنتر الطالب
+  const filteredQuizzes = studentCenter
+    ? state.quizzes.filter(q => (q.center || '') === studentCenter)
+    : state.quizzes.filter(q => !q.center);
+  const quizOpts = filteredQuizzes.map(q => `<option value="${q.id}">${q.name} (/${q.total})</option>`).join('');
   const qRow = document.getElementById('msg-picker-quiz-row');
-  if (qRow) { qRow.style.display = pickerQuizzes.length ? 'flex' : 'none'; qRow.style.flexDirection = 'column'; }
+  if (qRow) { qRow.style.display = filteredQuizzes.length ? 'flex' : 'none'; qRow.style.flexDirection = 'column'; }
   const qSel = document.getElementById('msg-picker-quiz-select');
   if (qSel) qSel.innerHTML = '<option value="">اختر الكويز</option>' + quizOpts;
 
-  // Session row
+  // Session row — فلتر حسب سنتر الطالب
+  const filteredSessions = studentCenter
+    ? state.sessions.filter(se => (se.center || '') === studentCenter)
+    : state.sessions.filter(se => !se.center);
   const sRow = document.getElementById('msg-picker-session-row');
-  if (sRow) { sRow.style.display = pickerSessions.length ? 'flex' : 'none'; sRow.style.flexDirection = 'column'; }
+  if (sRow) { sRow.style.display = filteredSessions.length ? 'flex' : 'none'; sRow.style.flexDirection = 'column'; }
   const sSel = document.getElementById('msg-picker-session-select');
   if (sSel) {
-    sSel.innerHTML = '<option value="">اختر المحاضرة</option>' + pickerSessions.map(se => `<option value="${se.id}">${se.name} — ${se.date}</option>`).join('');
-    // Pre-select last session
-    if (pickerSessions.length) sSel.value = pickerSessions[pickerSessions.length - 1].id;
+    sSel.innerHTML = '<option value="">اختر المحاضرة</option>' + filteredSessions.map(se => `<option value="${se.id}">${se.name} — ${se.date}</option>`).join('');
+    // Pre-select last session of this center
+    if (filteredSessions.length) sSel.value = filteredSessions[filteredSessions.length - 1].id;
   }
 
   // Reset selection
