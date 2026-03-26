@@ -1219,13 +1219,14 @@
               <input type="text" id="grades-search" placeholder="ابحث باسم أو كود..." oninput="filterGrades()" style="width:200px;padding-right:38px">
             </div>
             <button class="btn btn-secondary btn-sm" onclick="autoFillGrades()">🎲 Demo</button>
+            <button class="btn btn-secondary btn-sm" onclick="sortGradesByScore()">🔽 ترتيب</button>
             <button class="btn btn-secondary btn-sm" onclick="saveGradesOnly()">💾 حفظ</button>
             <button class="btn btn-success btn-sm" onclick="sendGradesWhatsApp()">📲 إرسال واتساب</button>
           </div>
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>#</th><th>الاسم</th><th>الكود</th><th>الدرجة</th><th>من</th><th>النسبة</th></tr></thead>
+            <thead><tr><th>#</th><th>الاسم</th><th>الكود</th><th>الدرجة</th><th>من</th><th>النسبة</th><th>ملاحظة</th></tr></thead>
             <tbody id="grades-tbody"></tbody>
           </table>
         </div>
@@ -1299,9 +1300,10 @@
             </div>
             <div class="form-group">
               <label>نموذج رسالة الدرجات</label>
-              <textarea id="grade-template" rows="5" style="resize:vertical">📝 *نتيجة {quiz} — Dr. Alaa Saber*
+              <textarea id="grade-template" rows="6" style="resize:vertical">📝 *نتيجة {quiz} — Dr. Alaa Saber*
 ولي أمر الطالب/ة *{name}*،
 الدرجة: *{grade}/{total} ({percent}%)*
+{note}
 للاستفسار يرجى التواصل. 📚</textarea>
             </div>
             <button class="btn btn-primary" onclick="saveNotifSettings()">💾 حفظ الإعدادات</button>
@@ -1608,7 +1610,7 @@ let state = {
     teacherName: 'أ. محمد أحمد',
     notifMethod: 'demo',
     absenceTemplate: '❌ *غياب — Dr. Alaa Saber*\nولي أمر الطالب/ة *{name}*،\nنود إعلامكم بغياب ابنكم/ابنتكم عن {session} بتاريخ {date}.\nنرجو الاهتمام بالحضور المنتظم. 🙏',
-    gradeTemplate: '📝 *نتيجة {quiz} — Dr. Alaa Saber*\nولي أمر الطالب/ة *{name}*،\nالدرجة: *{grade}/{total} ({percent}%)*\nللاستفسار يرجى التواصل. 📚',
+    gradeTemplate: '📝 *نتيجة {quiz} — Dr. Alaa Saber*\nولي أمر الطالب/ة *{name}*،\nالدرجة: *{grade}/{total} ({percent}%)*\n{note}\nللاستفسار يرجى التواصل. 📚',
     maxAbsence: 3
   },
   currentSession: null,
@@ -3225,6 +3227,44 @@ function openQuiz(id) {
   renderGradesTable(id, '');
 }
 
+function saveQuizNote(qid, code, val) {
+  if (!state.quizNotes) state.quizNotes = {};
+  if (!state.quizNotes[qid]) state.quizNotes[qid] = {};
+  if (val.trim()) {
+    state.quizNotes[qid][code] = val.trim();
+  } else {
+    delete state.quizNotes[qid][code];
+  }
+  saveState();
+}
+
+let gradesSortDesc = true; // toggle state
+function sortGradesByScore() {
+  if (!state.activeQuiz) return;
+  const quiz = state.quizzes.find(q => q.id === state.activeQuiz);
+  if (!quiz) return;
+  const tbody = document.getElementById('grades-tbody');
+  const rows = Array.from(tbody.querySelectorAll('tr'));
+  rows.sort((a, b) => {
+    const getVal = r => {
+      const inp = r.querySelector('input[type="number"]');
+      const v = inp ? parseFloat(inp.value) : NaN;
+      return isNaN(v) ? (gradesSortDesc ? -Infinity : Infinity) : v;
+    };
+    return gradesSortDesc ? getVal(b) - getVal(a) : getVal(a) - getVal(b);
+  });
+  rows.forEach((r, i) => {
+    // Update # column
+    const firstTd = r.querySelector('td:first-child');
+    if (firstTd) firstTd.textContent = i + 1;
+    tbody.appendChild(r);
+  });
+  gradesSortDesc = !gradesSortDesc;
+  const btn = document.querySelector('[onclick="sortGradesByScore()"]');
+  if (btn) btn.textContent = gradesSortDesc ? '🔽 ترتيب' : '🔼 ترتيب';
+  showToast(gradesSortDesc ? '🔼 مرتب من الأقل للأعلى' : '🔽 مرتب من الأعلى للأقل', 'info');
+}
+
 function renderGradesTable(id, filter) {
   const quiz = state.quizzes.find(q => q.id === id);
   if (!quiz) return;
@@ -3295,6 +3335,7 @@ function renderGradesTable(id, filter) {
     const pct = g !== '' ? Math.round((g / quiz.total) * 100) : '—';
     const color = g !== '' ? (pct >= 80 ? 'var(--accent3)' : pct >= 50 ? 'var(--warn)' : 'var(--danger)') : 'var(--text3)';
     const guestBadge = s.isGuest ? '<span style="font-size:10px;color:#a855f7;margin-right:4px">🔄</span>' : '';
+    const quizNote = (state.quizNotes?.[id]?.[s.code] || '').replace(/"/g,'&quot;');
     return `<tr style="${s.isGuest ? 'background:rgba(168,85,247,0.04)' : ''}">
       <td>${i + 1}</td>
       <td>${guestBadge}${s.name}</td>
@@ -3302,6 +3343,10 @@ function renderGradesTable(id, filter) {
       <td><input class="score-input" type="number" min="0" max="${quiz.total}" value="${g}" placeholder="0" id="grade-${s.code}" onchange="updateGradeDisplay('${s.code}','${id}','${quiz.total}')"></td>
       <td>${quiz.total}</td>
       <td><span id="pct-${s.code}" style="font-weight:700;color:${color}">${pct}${pct !== '—' ? '%' : ''}</span></td>
+      <td><input type="text" placeholder="ملاحظة..." value="${quizNote}" id="qnote-${s.code}"
+        onchange="saveQuizNote('${id}','${s.code}',this.value)"
+        style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:5px 8px;color:var(--text);font-family:Cairo,sans-serif;font-size:12px;width:120px;outline:none"
+        onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'"></td>
     </tr>`;
   }).join('');
 }
@@ -3396,12 +3441,26 @@ function collectGrades() {
         }
 
         const pct = Math.round((val / quiz.total) * 100);
+        // Get quiz note for this student
+        const quizNoteEl = document.getElementById('qnote-' + s.code);
+        const quizNote = quizNoteEl ? quizNoteEl.value.trim() : (state.quizNotes?.[state.activeQuiz]?.[s.code] || '');
+        // Save note to state
+        if (!state.quizNotes) state.quizNotes = {};
+        if (!state.quizNotes[state.activeQuiz]) state.quizNotes[state.activeQuiz] = {};
+        state.quizNotes[state.activeQuiz][s.code] = quizNote;
+        // Build message — replace {note} with note line or empty
+        const noteStr = quizNote ? `ملاحظات إضافية: ${quizNote}` : '';
         const msg = state.settings.gradeTemplate
           .replace('{name}', s.name)
           .replace('{quiz}', quiz.name)
           .replace('{grade}', val)
           .replace('{total}', quiz.total)
-          .replace('{percent}', pct);
+          .replace('{percent}', pct)
+          .replace('{note}', noteStr)
+          .replace(/
+
++/g, '
+'); // clean up empty lines if no note
         messages.push({ student: s, msg });
       }
     }
@@ -5253,12 +5312,19 @@ function selectMsgType(type) {
     else {
       const g = state.grades[qid]?.[s.code];
       const pct = g !== undefined ? Math.round((g / quiz.total) * 100) : null;
-      preview = `📝 *نتيجة ${quiz.name} — Dr. Alaa Saber*
+      const qn = state.quizNotes?.[qid]?.[s.code] || '';
+      const noteStr = qn ? `ملاحظات إضافية: ${qn}` : '';
+      preview = state.settings.gradeTemplate
+        .replace('{name}', s.name)
+        .replace('{quiz}', quiz.name)
+        .replace('{grade}', g !== undefined ? g : '—')
+        .replace('{total}', quiz.total)
+        .replace('{percent}', pct !== null ? pct + '%' : '—')
+        .replace('{note}', noteStr)
+        .replace(/
 
-ولي أمر الطالب/ة *${s.name}*،
-الدرجة: *${g !== undefined ? g : '—'}/${quiz.total}*${pct !== null ? ` (${pct}%)` : ''}
-
-للاستفسار يرجى التواصل. 📚`;
++/g, '
+');
       if (msgPickerTargets.length > 1) preview += '\n\n(سيتم تخصيص الدرجات لكل طالب)';
     }
   } else if (type === 'session-absence') {
@@ -5313,12 +5379,19 @@ function buildFinalMsg(type, student) {
     if (!quiz) return '';
     const g = state.grades[qid]?.[student.code];
     const pct = g !== undefined ? Math.round((g / quiz.total) * 100) : null;
-    return `📝 *نتيجة ${quiz.name} — Dr. Alaa Saber*
+    const qn2 = state.quizNotes?.[qid]?.[student.code] || '';
+    const noteStr2 = qn2 ? `ملاحظات إضافية: ${qn2}` : '';
+    return state.settings.gradeTemplate
+      .replace('{name}', student.name)
+      .replace('{quiz}', quiz.name)
+      .replace('{grade}', g !== undefined ? g : '—')
+      .replace('{total}', quiz.total)
+      .replace('{percent}', pct !== null ? pct + '%' : '—')
+      .replace('{note}', noteStr2)
+      .replace(/
 
-ولي أمر الطالب/ة *${student.name}*،
-الدرجة: *${g !== undefined ? g : '—'}/${quiz.total}*${pct !== null ? ` (${pct}%)` : ''}
-
-للاستفسار يرجى التواصل. 📚`;
++/g, '
+');
   }
   if (type === 'session-absence') {
     const sid = document.getElementById('msg-picker-session-select').value;
