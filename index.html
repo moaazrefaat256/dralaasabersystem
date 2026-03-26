@@ -1193,6 +1193,10 @@
                 </select>
               </div>
             </div>
+            <div class="form-group">
+              <label>ملاحظات الكويز <span style="font-size:10px;color:var(--text3);font-weight:400">(اختياري — ستُضاف في رسالة ولي الأمر)</span></label>
+              <input type="text" id="q-note" placeholder="مثال: الكويز صعب شوية، الكل عدى بتفوق 🎉">
+            </div>
             <button class="btn btn-primary" onclick="createQuiz()">✅ إنشاء الكويز</button>
           </div>
         </div>
@@ -1219,13 +1223,14 @@
               <input type="text" id="grades-search" placeholder="ابحث باسم أو كود..." oninput="filterGrades()" style="width:200px;padding-right:38px">
             </div>
             <button class="btn btn-secondary btn-sm" onclick="autoFillGrades()">🎲 Demo</button>
+            <button class="btn btn-secondary btn-sm" onclick="sortGradesByScore()">🔽 ترتيب حسب الدرجة</button>
             <button class="btn btn-secondary btn-sm" onclick="saveGradesOnly()">💾 حفظ</button>
             <button class="btn btn-success btn-sm" onclick="sendGradesWhatsApp()">📲 إرسال واتساب</button>
           </div>
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>#</th><th>الاسم</th><th>الكود</th><th>الدرجة</th><th>من</th><th>النسبة</th></tr></thead>
+            <thead><tr><th>#</th><th>الاسم</th><th>الكود</th><th>الدرجة</th><th>من</th><th>النسبة</th><th>ملاحظة</th></tr></thead>
             <tbody id="grades-tbody"></tbody>
           </table>
         </div>
@@ -1302,7 +1307,7 @@
               <textarea id="grade-template" rows="5" style="resize:vertical">📝 *نتيجة {quiz} — Dr. Alaa Saber*
 ولي أمر الطالب/ة *{name}*،
 الدرجة: *{grade}/{total} ({percent}%)*
-للاستفسار يرجى التواصل. 📚</textarea>
+{quiznote}للاستفسار يرجى التواصل. 📚</textarea>
             </div>
             <button class="btn btn-primary" onclick="saveNotifSettings()">💾 حفظ الإعدادات</button>
           </div>
@@ -1608,7 +1613,7 @@ let state = {
     teacherName: 'أ. محمد أحمد',
     notifMethod: 'demo',
     absenceTemplate: '❌ *غياب — Dr. Alaa Saber*\nولي أمر الطالب/ة *{name}*،\nنود إعلامكم بغياب ابنكم/ابنتكم عن {session} بتاريخ {date}.\nنرجو الاهتمام بالحضور المنتظم. 🙏',
-    gradeTemplate: '📝 *نتيجة {quiz} — Dr. Alaa Saber*\nولي أمر الطالب/ة *{name}*،\nالدرجة: *{grade}/{total} ({percent}%)*\nللاستفسار يرجى التواصل. 📚',
+    gradeTemplate: '📝 *نتيجة {quiz} — Dr. Alaa Saber*\nولي أمر الطالب/ة *{name}*،\nالدرجة: *{grade}/{total} ({percent}%)*\n{quiznote}للاستفسار يرجى التواصل. 📚',
     maxAbsence: 3
   },
   currentSession: null,
@@ -3194,13 +3199,15 @@ function createQuiz() {
   // Inherit center from linked session
   const linkedSession = state.sessions.find(s => s.id === session);
   const quizCenter = linkedSession?.center || '';
-  state.quizzes.push({ id, name, total, session, center: quizCenter, date: new Date().toLocaleDateString('ar-EG') });
+  const note = document.getElementById('q-note')?.value.trim() || '';
+  state.quizzes.push({ id, name, total, session, center: quizCenter, date: new Date().toLocaleDateString('ar-EG'), note });
   state.grades[id] = {};
   saveState();
   renderQuizzes();
   openQuiz(id);
   showToast(`تم إنشاء ${name}`, 'success');
   document.getElementById('q-name').value = '';
+  if (document.getElementById('q-note')) document.getElementById('q-note').value = '';
 }
 
 function openQuiz(id) {
@@ -3295,6 +3302,7 @@ function renderGradesTable(id, filter) {
     const pct = g !== '' ? Math.round((g / quiz.total) * 100) : '—';
     const color = g !== '' ? (pct >= 80 ? 'var(--accent3)' : pct >= 50 ? 'var(--warn)' : 'var(--danger)') : 'var(--text3)';
     const guestBadge = s.isGuest ? '<span style="font-size:10px;color:#a855f7;margin-right:4px">🔄</span>' : '';
+    const studentNote = state.quizNotes?.[id]?.[s.code] || '';
     return `<tr style="${s.isGuest ? 'background:rgba(168,85,247,0.04)' : ''}">
       <td>${i + 1}</td>
       <td>${guestBadge}${s.name}</td>
@@ -3302,6 +3310,7 @@ function renderGradesTable(id, filter) {
       <td><input class="score-input" type="number" min="0" max="${quiz.total}" value="${g}" placeholder="0" id="grade-${s.code}" onchange="updateGradeDisplay('${s.code}','${id}','${quiz.total}')"></td>
       <td>${quiz.total}</td>
       <td><span id="pct-${s.code}" style="font-weight:700;color:${color}">${pct}${pct !== '—' ? '%' : ''}</span></td>
+      <td><input type="text" value="${studentNote}" placeholder="ملاحظة..." id="snote-${s.code}" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:5px 8px;color:var(--text);font-family:Cairo,sans-serif;font-size:11px;width:130px;outline:none" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)';saveStudentNote('${s.code}','${id}')"></td>
     </tr>`;
   }).join('');
 }
@@ -3310,6 +3319,60 @@ function filterGrades() {
   if (!state.activeQuiz) return;
   const q = document.getElementById('grades-search').value.trim();
   renderGradesTable(state.activeQuiz, q);
+}
+
+function saveStudentNote(code, qid) {
+  const el = document.getElementById('snote-' + code);
+  if (!el) return;
+  if (!state.quizNotes) state.quizNotes = {};
+  if (!state.quizNotes[qid]) state.quizNotes[qid] = {};
+  state.quizNotes[qid][code] = el.value.trim();
+  saveState();
+}
+
+// Sort direction tracker
+let gradesSortAsc = false;
+
+function sortGradesByScore() {
+  if (!state.activeQuiz) return;
+  const quiz = state.quizzes.find(q => q.id === state.activeQuiz);
+  if (!quiz) return;
+
+  // Save any unsaved grades first
+  const inputs = document.querySelectorAll('.score-input');
+  inputs.forEach(inp => {
+    const code = inp.id.replace('grade-', '');
+    const val = parseFloat(inp.value);
+    if (!isNaN(val)) {
+      if (!state.grades[state.activeQuiz]) state.grades[state.activeQuiz] = {};
+      state.grades[state.activeQuiz][code] = val;
+    }
+  });
+
+  gradesSortAsc = !gradesSortAsc;
+
+  // Re-render with sorted students
+  const tbody = document.getElementById('grades-tbody');
+  const rows = Array.from(tbody.querySelectorAll('tr'));
+
+  rows.sort((a, b) => {
+    const codeA = a.querySelector('.score-input')?.id?.replace('grade-', '') || '';
+    const codeB = b.querySelector('.score-input')?.id?.replace('grade-', '') || '';
+    const gA = state.grades[state.activeQuiz]?.[codeA] ?? -1;
+    const gB = state.grades[state.activeQuiz]?.[codeB] ?? -1;
+    return gradesSortAsc ? gA - gB : gB - gA;
+  });
+
+  // Re-number and re-append
+  rows.forEach((row, i) => {
+    const firstCell = row.querySelector('td');
+    if (firstCell) firstCell.textContent = i + 1;
+    tbody.appendChild(row);
+  });
+
+  // Update button label
+  const sortBtn = document.querySelector('[onclick="sortGradesByScore()"]');
+  if (sortBtn) sortBtn.textContent = gradesSortAsc ? '🔼 ترتيب حسب الدرجة' : '🔽 ترتيب حسب الدرجة';
 }
 
 function updateGradeDisplay(code, qid, total) {
@@ -3396,12 +3459,23 @@ function collectGrades() {
         }
 
         const pct = Math.round((val / quiz.total) * 100);
+        const quiznoteVal = quiz.note ? `ملاحظات: ${quiz.note}\n` : '';
+        // Also save student-specific note from input if present
+        const snoteEl = document.getElementById('snote-' + s.code);
+        if (snoteEl) {
+          if (!state.quizNotes) state.quizNotes = {};
+          if (!state.quizNotes[state.activeQuiz]) state.quizNotes[state.activeQuiz] = {};
+          state.quizNotes[state.activeQuiz][s.code] = snoteEl.value.trim();
+        }
+        const studentNote = state.quizNotes?.[state.activeQuiz]?.[s.code] || '';
+        const studentNoteVal = studentNote ? `ملاحظة: ${studentNote}\n` : '';
         const msg = state.settings.gradeTemplate
           .replace('{name}', s.name)
           .replace('{quiz}', quiz.name)
           .replace('{grade}', val)
           .replace('{total}', quiz.total)
-          .replace('{percent}', pct);
+          .replace('{percent}', pct)
+          .replace('{quiznote}', quiznoteVal + studentNoteVal);
         messages.push({ student: s, msg });
       }
     }
@@ -3476,6 +3550,11 @@ function editQuizName(id) {
       <input type="number" id="edit-quiz-total-input" value="${quiz.total}" min="1"
         style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:9px 12px;color:var(--text);font-family:Cairo,sans-serif;font-size:13px;width:100%;outline:none">
     </div>
+    <div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:4px">ملاحظات الكويز <span style="opacity:0.6">(اختياري)</span></div>
+      <input type="text" id="edit-quiz-note-input" value="${quiz.note||''}" placeholder="ملاحظة ستُضاف في رسالة ولي الأمر..."
+        style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:9px 12px;color:var(--text);font-family:Cairo,sans-serif;font-size:13px;width:100%;outline:none">
+    </div>
     <div style="display:flex;gap:8px;margin-top:4px">
       <button onclick="confirmEditQuizName('${id}')" style="flex:1;padding:9px;background:var(--accent);color:#000;border:none;border-radius:8px;font-family:Cairo,sans-serif;font-weight:700;cursor:pointer;font-size:13px">💾 حفظ</button>
       <button onclick="document.getElementById('edit-quiz-toast').remove()" style="flex:1;padding:9px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:Cairo,sans-serif;font-weight:700;cursor:pointer;font-size:13px">إلغاء</button>
@@ -3505,6 +3584,7 @@ function confirmEditQuizName(id) {
   if (idx === -1) return;
   state.quizzes[idx].name = newName;
   state.quizzes[idx].total = newTotal;
+  state.quizzes[idx].note = (document.getElementById('edit-quiz-note-input')?.value.trim() || '');
 
   const el = document.getElementById('edit-quiz-toast');
   if (el) el.remove();
@@ -5253,11 +5333,12 @@ function selectMsgType(type) {
     else {
       const g = state.grades[qid]?.[s.code];
       const pct = g !== undefined ? Math.round((g / quiz.total) * 100) : null;
+      const quiznoteVal = quiz.note ? `ملاحظات: ${quiz.note}\n` : '';
       preview = `📝 *نتيجة ${quiz.name} — Dr. Alaa Saber*
 
 ولي أمر الطالب/ة *${s.name}*،
 الدرجة: *${g !== undefined ? g : '—'}/${quiz.total}*${pct !== null ? ` (${pct}%)` : ''}
-
+${quiznoteVal}
 للاستفسار يرجى التواصل. 📚`;
       if (msgPickerTargets.length > 1) preview += '\n\n(سيتم تخصيص الدرجات لكل طالب)';
     }
@@ -5313,11 +5394,12 @@ function buildFinalMsg(type, student) {
     if (!quiz) return '';
     const g = state.grades[qid]?.[student.code];
     const pct = g !== undefined ? Math.round((g / quiz.total) * 100) : null;
+    const quiznoteVal = quiz.note ? `ملاحظات: ${quiz.note}\n` : '';
     return `📝 *نتيجة ${quiz.name} — Dr. Alaa Saber*
 
 ولي أمر الطالب/ة *${student.name}*،
 الدرجة: *${g !== undefined ? g : '—'}/${quiz.total}*${pct !== null ? ` (${pct}%)` : ''}
-
+${quiznoteVal}
 للاستفسار يرجى التواصل. 📚`;
   }
   if (type === 'session-absence') {
