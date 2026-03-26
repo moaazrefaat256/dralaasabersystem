@@ -1208,7 +1208,10 @@
         <div class="card-header">
           <div>
             <div class="card-title" id="active-quiz-title">إدخال الدرجات</div>
-            <div class="card-subtitle" id="active-quiz-subtitle"></div>
+            <div id="active-quiz-subtitle" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:3px">
+              <span class="card-subtitle" id="active-quiz-subtitle-text"></span>
+              <span id="quiz-att-badge" style="display:none;font-size:11px;background:rgba(16,185,129,0.12);color:var(--accent3);border:1px solid rgba(16,185,129,0.25);border-radius:20px;padding:2px 10px;font-weight:700">✅ الحاضرين فقط</span>
+            </div>
           </div>
           <div style="display:flex;gap:8px;align-items:center">
             <div class="search-wrap">
@@ -3207,8 +3210,15 @@ function openQuiz(id) {
 
   document.getElementById('quiz-entry-section').style.display = 'block';
   document.getElementById('active-quiz-title').textContent = `📝 ${quiz.name}`;
-  document.getElementById('active-quiz-subtitle').textContent =
-    `الدرجة الكاملة: ${quiz.total}` + (quiz.center ? ` — ${quiz.center}` : '');
+
+  // Subtitle text
+  const subtitleText = document.getElementById('active-quiz-subtitle-text');
+  if (subtitleText) subtitleText.textContent = `الدرجة الكاملة: ${quiz.total}` + (quiz.center ? ` — ${quiz.center}` : '');
+
+  // Show attendance badge only if quiz is linked to a session
+  const attBadge = document.getElementById('quiz-att-badge');
+  if (attBadge) attBadge.style.display = quiz.session ? 'inline-flex' : 'none';
+
   const searchEl = document.getElementById('grades-search');
   if (searchEl) searchEl.value = '';
 
@@ -3227,11 +3237,15 @@ function renderGradesTable(id, filter) {
   } else {
     centerStudents = state.students.filter(s => !s.center && !s.isGuest);
   }
-  // Exclude students who were compensating OUT in another center during THIS quiz's session
+  // If quiz is linked to a session — only show students who ATTENDED that session
   if (quiz.session) {
+    const sessionAtt = state.attendance[quiz.session] || {};
     centerStudents = centerStudents.filter(s => {
-      const note = state.attendance[quiz.session + '_notes']?.[s.code] || '';
-      // Remove if they compensated OUT (note = "عوض في X" meaning they went to another center)
+      const status = sessionAtt[s.code];
+      const note   = state.attendance[quiz.session + '_notes']?.[s.code] || '';
+      // Remove absent students
+      if (status === 'absent') return false;
+      // Remove students who compensated OUT to another center
       if (note.startsWith('عوض في')) return false;
       return true;
     });
@@ -3255,8 +3269,15 @@ function renderGradesTable(id, filter) {
   }
   const allStudents = [...centerStudents, ...compVisitors];
 
+  // Update badge count
+  const attBadge = document.getElementById('quiz-att-badge');
+  if (attBadge && quiz.session) {
+    attBadge.textContent = `✅ الحاضرين فقط (${allStudents.length})`;
+    attBadge.style.display = 'inline-flex';
+  }
+
   if (!allStudents.length) {
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:30px">لا يوجد طلاب لهذا السنتر</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:30px">لا يوجد طلاب حضروا هذه الحصة</td></tr>';
     return;
   }
 
