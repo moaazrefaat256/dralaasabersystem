@@ -1613,7 +1613,7 @@ let state = {
     teacherName: 'أ. محمد أحمد',
     notifMethod: 'demo',
     absenceTemplate: '❌ *غياب — Dr. Alaa Saber*\nولي أمر الطالب/ة *{name}*،\nنود إعلامكم بغياب ابنكم/ابنتكم عن {session} بتاريخ {date}.\nنرجو الاهتمام بالحضور المنتظم. 🙏',
-    gradeTemplate: '📝 *نتيجة {quiz} — Dr. Alaa Saber*\nولي أمر الطالب/ة *{name}*،\nالدرجة: *{grade}/{total} ({percent}%)*\n{quiznote}للاستفسار يرجى التواصل. 📚',
+    gradeTemplate: '{quiznote}📝 *نتيجة {quiz} — Dr. Alaa Saber*\nولي أمر الطالب/ة *{name}*،\nالدرجة: *{grade}/{total} ({percent}%)*{studentnote}\n\nللاستفسار يرجى التواصل. 📚',
     maxAbsence: 3
   },
   currentSession: null,
@@ -3459,7 +3459,7 @@ function collectGrades() {
         }
 
         const pct = Math.round((val / quiz.total) * 100);
-        const quiznoteVal = quiz.note ? `ملاحظات: ${quiz.note}\n` : '';
+        const quiznoteVal = quiz.note ? `📌 ${quiz.note}\n\n` : '';
         // Also save student-specific note from input if present
         const snoteEl = document.getElementById('snote-' + s.code);
         if (snoteEl) {
@@ -3468,14 +3468,15 @@ function collectGrades() {
           state.quizNotes[state.activeQuiz][s.code] = snoteEl.value.trim();
         }
         const studentNote = state.quizNotes?.[state.activeQuiz]?.[s.code] || '';
-        const studentNoteVal = studentNote ? `ملاحظة: ${studentNote}\n` : '';
+        const studentNoteVal = studentNote ? `\n💬 ${studentNote}` : '';
         const msg = state.settings.gradeTemplate
           .replace('{name}', s.name)
           .replace('{quiz}', quiz.name)
           .replace('{grade}', val)
           .replace('{total}', quiz.total)
           .replace('{percent}', pct)
-          .replace('{quiznote}', quiznoteVal + studentNoteVal);
+          .replace('{quiznote}', quiznoteVal)
+          .replace('{studentnote}', studentNoteVal);
         messages.push({ student: s, msg });
       }
     }
@@ -5333,12 +5334,14 @@ function selectMsgType(type) {
     else {
       const g = state.grades[qid]?.[s.code];
       const pct = g !== undefined ? Math.round((g / quiz.total) * 100) : null;
-      const quiznoteVal = quiz.note ? `ملاحظات: ${quiz.note}\n` : '';
-      preview = `📝 *نتيجة ${quiz.name} — Dr. Alaa Saber*
+      const quiznoteVal = quiz.note ? `📌 ${quiz.note}\n\n` : '';
+      const studentNote = state.quizNotes?.[qid]?.[s.code] || '';
+      const studentNoteVal = studentNote ? `\n💬 ${studentNote}` : '';
+      preview = `${quiznoteVal}📝 *نتيجة ${quiz.name} — Dr. Alaa Saber*
 
 ولي أمر الطالب/ة *${s.name}*،
-الدرجة: *${g !== undefined ? g : '—'}/${quiz.total}*${pct !== null ? ` (${pct}%)` : ''}
-${quiznoteVal}
+الدرجة: *${g !== undefined ? g : '—'}/${quiz.total}*${pct !== null ? ` (${pct}%)` : ''}${studentNoteVal}
+
 للاستفسار يرجى التواصل. 📚`;
       if (msgPickerTargets.length > 1) preview += '\n\n(سيتم تخصيص الدرجات لكل طالب)';
     }
@@ -5394,12 +5397,14 @@ function buildFinalMsg(type, student) {
     if (!quiz) return '';
     const g = state.grades[qid]?.[student.code];
     const pct = g !== undefined ? Math.round((g / quiz.total) * 100) : null;
-    const quiznoteVal = quiz.note ? `ملاحظات: ${quiz.note}\n` : '';
-    return `📝 *نتيجة ${quiz.name} — Dr. Alaa Saber*
+    const quiznoteVal = quiz.note ? `📌 ${quiz.note}\n\n` : '';
+    const studentNote = state.quizNotes?.[qid]?.[student.code] || '';
+    const studentNoteVal = studentNote ? `\n💬 ${studentNote}` : '';
+    return `${quiznoteVal}📝 *نتيجة ${quiz.name} — Dr. Alaa Saber*
 
 ولي أمر الطالب/ة *${student.name}*،
-الدرجة: *${g !== undefined ? g : '—'}/${quiz.total}*${pct !== null ? ` (${pct}%)` : ''}
-${quiznoteVal}
+الدرجة: *${g !== undefined ? g : '—'}/${quiz.total}*${pct !== null ? ` (${pct}%)` : ''}${studentNoteVal}
+
 للاستفسار يرجى التواصل. 📚`;
   }
   if (type === 'session-absence') {
