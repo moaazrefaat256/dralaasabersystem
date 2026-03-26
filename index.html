@@ -5013,7 +5013,17 @@ function closeScanner() {
 let waMessages = [];
 
 function showWAModal(messages, ref) {
+  // Enrich guest students with full phone data from state.students
+  messages = messages.map(m => {
+    if (m.student.isGuest) {
+      const full = state.students.find(s => s.code === m.student.code);
+      if (full) return { ...m, student: { ...full, isGuest: true } };
+    }
+    return m;
+  });
+
   waMessages = messages;
+  waSentCount = 0;
   document.getElementById('wa-modal-subtitle').textContent = `${messages.length} رسالة — ${ref}`;
   document.getElementById('wa-progress-label').textContent = `0 / ${messages.length}`;
   document.getElementById('wa-progress-bar').style.width = '0%';
@@ -5022,11 +5032,12 @@ function showWAModal(messages, ref) {
   list.innerHTML = messages.map((m, i) => {
     const s = m.student;
     const hasParents = s.father || s.mother;
+    const msgFormatted = m.msg.replace(/\n/g, '<br>').replace(/\*(.*?)\*/g, '<strong>$1</strong>');
     return `<div id="wa-item-${i}" style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px;transition:all 0.2s">
       <div style="display:flex;align-items:center;gap:12px">
         <div style="flex:1">
-          <div style="font-weight:700;font-size:14px">${s.name} <span style="font-family:monospace;font-size:11px;color:var(--text3)">${s.code}</span></div>
-          <div style="font-size:12px;color:var(--text3);margin-top:3px">${m.msg}</div>
+          <div style="font-weight:700;font-size:14px">${s.name} <span style="font-family:monospace;font-size:11px;color:var(--text3)">${s.code}</span>${s.isGuest ? ' <span style="font-size:10px;background:rgba(168,85,247,0.15);color:#a855f7;padding:1px 6px;border-radius:4px">🔄 تعويض</span>' : ''}</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:6px;line-height:1.7;background:var(--surface);border-radius:8px;padding:8px 10px;border:1px solid var(--border)">${msgFormatted}</div>
           <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
             ${s.phone ? `<button class="btn btn-sm" onclick="sendSingleWA(${i},'student')" id="wa-btn-${i}-student" style="background:linear-gradient(135deg,#0284c7,#0369a1);color:#fff">
               📲 الطالب ${s.phone}
@@ -5083,13 +5094,17 @@ function sendSingleWA(idx, target) {
 }
 
 function sendAllWA() {
+  let delay = 0;
   waMessages.forEach((m, i) => {
-    let delay = 0;
-    if (m.student.phone)   { setTimeout(() => sendSingleWA(i, 'student'), delay); delay += 400; }
-    if (m.student.father)  { setTimeout(() => sendSingleWA(i, 'father'),  delay); delay += 400; }
-    if (m.student.mother)  { setTimeout(() => sendSingleWA(i, 'mother'),  delay); delay += 400; }
+    const s = m.student;
+    // بعت للأم فقط، لو مفيش أم بعت للأب
+    if (s.mother) {
+      setTimeout(() => sendSingleWA(i, 'mother'), delay); delay += 500;
+    } else if (s.father) {
+      setTimeout(() => sendSingleWA(i, 'father'), delay); delay += 500;
+    }
   });
-  showToast('📲 جارٍ فتح واتساب لكل الأرقام...', 'info');
+  showToast('📲 جارٍ الإرسال لأولياء الأمور...', 'info');
 }
 
 function editStudent(code) {
