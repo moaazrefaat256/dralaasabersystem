@@ -1028,6 +1028,7 @@
           </div>
           <div style="display:flex;gap:8px;align-items:center">
             <button class="btn btn-success btn-sm" onclick="sendWhatsAppAll()">📲 إرسال للكل</button>
+            <button class="btn btn-sm" onclick="sendQRAll()" style="background:linear-gradient(135deg,#a855f7,#7c3aed);color:#fff">📷 إرسال QR للجميع</button>
             <button class="btn btn-danger btn-sm" onclick="deleteAllStudents()">🗑️ حذف الكل</button>
             <select id="center-filter" onchange="filterStudents()" style="width:160px;font-size:12px;padding:8px 12px">
               <option value="">كل السنترات</option>
@@ -4000,14 +4001,26 @@ function exportReportPDF() {
 // ============================================================
 //  WHATSAPP DIRECT SEND
 // ============================================================
-function sendWhatsApp(phone, message) {
-  // Clean phone: remove spaces, dashes, leading 0 → add 20 (Egypt)
+const WA_SERVER = 'https://weldable-adah-blearily.ngrok-free.app';
+
+async function sendWhatsApp(phone, message) {
   if (!phone) return;
   let p = phone.replace(/[\s\-\(\)]/g, '');
-  if (p.startsWith('0')) p = '2' + p;          // 01xxxxxxx → 201xxxxxxx
-  if (!p.startsWith('+')) p = '+' + p;
-  const url = 'https://wa.me/' + p.replace('+','') + '?text=' + encodeURIComponent(message);
-  window.open(url, '_blank');
+  if (p.startsWith('0')) p = '2' + p;
+  try {
+    const res = await fetch(WA_SERVER + '/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone: p, message })
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error);
+  } catch (err) {
+    // fallback to wa.me if server not running
+    if (!p.startsWith('+')) p = '+' + p;
+    const url = 'https://wa.me/' + p.replace('+','') + '?text=' + encodeURIComponent(message);
+    window.open(url, '_blank');
+  }
 }
 
 function sendWhatsAppToParents(student, message) {
@@ -5061,27 +5074,29 @@ function showWAModal(messages, ref) {
 
 let waSentCount = 0;
 
-function sendSingleWA(idx, target) {
+async function sendSingleWA(idx, target) {
   const m = waMessages[idx];
   let phone;
   if (target === 'father') phone = m.student.father;
   else if (target === 'mother') phone = m.student.mother;
   else if (target === 'student') phone = m.student.phone;
   if (!phone) return;
-  sendWhatsApp(phone, m.msg);
 
-  // Mark button as sent
   const btn = document.getElementById(`wa-btn-${idx}-${target}`);
-  if (btn) { btn.textContent = '✅ تم الفتح'; btn.disabled = true; btn.style.opacity = '0.6'; }
+  if (btn) { btn.textContent = '⏳ جارٍ...'; btn.disabled = true; }
+
+  await sendWhatsApp(phone, m.msg);
+
+  if (btn) { btn.textContent = '✅ تم'; btn.style.opacity = '0.6'; }
 
   // Check if all numbers for this student are sent → mark row green
   const row = document.getElementById(`wa-item-${idx}`);
   const sBtn = document.getElementById(`wa-btn-${idx}-student`);
   const fBtn = document.getElementById(`wa-btn-${idx}-father`);
   const mBtn = document.getElementById(`wa-btn-${idx}-mother`);
-  const sDone = !m.student.phone   || sBtn?.disabled;
-  const fDone = !m.student.father  || fBtn?.disabled;
-  const mDone = !m.student.mother  || mBtn?.disabled;
+  const sDone = !m.student.phone  || sBtn?.disabled;
+  const fDone = !m.student.father || fBtn?.disabled;
+  const mDone = !m.student.mother || mBtn?.disabled;
   if (sDone && fDone && mDone) {
     row.style.borderColor = 'var(--accent3)';
     row.style.background = 'rgba(16,185,129,0.05)';
@@ -5093,18 +5108,22 @@ function sendSingleWA(idx, target) {
   }
 }
 
-function sendAllWA() {
-  let delay = 0;
-  waMessages.forEach((m, i) => {
-    const s = m.student;
+async function sendAllWA() {
+  const btn = document.querySelector('[onclick="sendAllWA()"]');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ جارٍ الإرسال...'; }
+  let sent = 0;
+  for (let i = 0; i < waMessages.length; i++) {
+    const s = waMessages[i].student;
     // بعت للأم فقط، لو مفيش أم بعت للأب
-    if (s.mother) {
-      setTimeout(() => sendSingleWA(i, 'mother'), delay); delay += 500;
-    } else if (s.father) {
-      setTimeout(() => sendSingleWA(i, 'father'), delay); delay += 500;
+    const target = s.mother ? 'mother' : s.father ? 'father' : null;
+    if (target) {
+      await sendSingleWA(i, target);
+      sent++;
+      await new Promise(r => setTimeout(r, 8000)); // 8 ثواني delay بين كل رسالة
     }
-  });
-  showToast('📲 جارٍ الإرسال لأولياء الأمور...', 'info');
+  }
+  if (btn) { btn.disabled = false; btn.textContent = '📲 إرسال للكل دفعة واحدة'; }
+  showToast(`✅ تم إرسال ${sent} رسالة بنجاح`, 'success');
 }
 
 function editStudent(code) {
@@ -5456,6 +5475,34 @@ function confirmMsgPicker() {
   if (!messages.length) { showToast('لا يوجد طلاب غائبين في هذه المحاضرة', 'error'); return; }
   closeModal('msg-picker-modal');
   showWAModal(messages, active.querySelector('.msg-label')?.textContent || '');
+}
+
+
+async function sendQRAll() {
+  const students = state.students.filter(s => s.mother || s.father);
+  if (!students.length) { showToast('لا يوجد طلاب بأرقام', 'error'); return; }
+  if (!confirm(`سيتم إرسال QR لـ ${students.length} طالب. هل أنت متأكد؟`)) return;
+  showToast(`⏳ جارٍ إرسال QR لـ ${students.length} طالب...`, 'info');
+  let sent = 0;
+  for (const s of students) {
+    try {
+      const canvas = await _generateQRCanvas(s.code, 300);
+      const dataUrl = canvas.toDataURL('image/png');
+      const base64 = dataUrl.split(',')[1];
+      const phone = s.mother || s.father;
+      let p = phone.replace(/[\s\-\(\)]/g, '');
+      if (p.startsWith('0')) p = '2' + p;
+      const msg = `📷 بطاقة QR الطالب — Dr. Alaa Saber\n\n👤 الطالب: *${s.name}*\n🔢 الكود: ${s.code}`;
+      await fetch(WA_SERVER + '/send-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: p, message: msg, image: base64 })
+      });
+      sent++;
+      await new Promise(r => setTimeout(r, 8000));
+    } catch (e) { console.error(e); }
+  }
+  showToast(`✅ تم إرسال QR لـ ${sent} طالب`, 'success');
 }
 
 // Bottom nav active state
