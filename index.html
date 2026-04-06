@@ -4010,7 +4010,7 @@ async function sendWhatsApp(phone, message) {
   try {
     const res = await fetch(WA_SERVER + '/send', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' },
       body: JSON.stringify({ phone: p, message })
     });
     const data = await res.json();
@@ -5495,7 +5495,7 @@ async function sendQRAll() {
       const msg = `📷 بطاقة QR الطالب — Dr. Alaa Saber\n\n👤 الطالب: *${s.name}*\n🔢 الكود: ${s.code}`;
       await fetch(WA_SERVER + '/send-image', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' },
         body: JSON.stringify({ phone: p, message: msg, image: base64 })
       });
       sent++;
