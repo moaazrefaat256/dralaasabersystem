@@ -1028,6 +1028,7 @@
           </div>
           <div style="display:flex;gap:8px;align-items:center">
             <button class="btn btn-success btn-sm" onclick="sendWhatsAppAll()">📲 إرسال للكل</button>
+            <button class="btn btn-sm" onclick="promptServerUrl()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text2);font-size:11px">🌐 رابط السيرفر</button>
             <button class="btn btn-sm" onclick="sendQRAll()" style="background:linear-gradient(135deg,#a855f7,#7c3aed);color:#fff">📷 إرسال QR للجميع</button>
             <button class="btn btn-danger btn-sm" onclick="deleteAllStudents()">🗑️ حذف الكل</button>
             <select id="center-filter" onchange="filterStudents()" style="width:160px;font-size:12px;padding:8px 12px">
@@ -2061,7 +2062,7 @@ function addStudent() {
   }
 
   // At least one parent number required
-  if (!father && !mother) { showToast('⚠️ لازم رقم الأب أو الأم على الأقل', 'error'); return; }
+  // رقم واحد على الأقل كافي (أب أو أم)
 
   // All entered numbers must be exactly 11 digits
   const phoneFields = [
@@ -4001,26 +4002,43 @@ function exportReportPDF() {
 // ============================================================
 //  WHATSAPP DIRECT SEND
 // ============================================================
-const WA_SERVER = 'https://pending-essays-cho-pipeline.trycloudflare.com';
+// Server URL — saved in localStorage
+let WA_SERVER = localStorage.getItem('wa_server_url') || '';
 
-async function sendWhatsApp(phone, message) {
+function promptServerUrl() {
+  const current = WA_SERVER || '';
+  const url = prompt('🌐 أدخل رابط السيرفر (Cloudflare URL):', current);
+  if (url && url.trim()) {
+    WA_SERVER = url.trim().replace(/\/$/, '');
+    localStorage.setItem('wa_server_url', WA_SERVER);
+    showToast('✅ تم حفظ رابط السيرفر', 'success');
+  }
+}
+
+// إرسال manual عبر wa.me
+function sendWhatsApp(phone, message) {
   if (!phone) return;
   let p = phone.replace(/[\s\-\(\)]/g, '');
   if (p.startsWith('0')) p = '2' + p;
-  try {
-    const res = await fetch(WA_SERVER + '/send', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-requested-with': 'XMLHttpRequest' },
-      body: JSON.stringify({ phone: p, message })
-    });
-    const data = await res.json();
-    if (!data.success) throw new Error(data.error);
-  } catch (err) {
-    // fallback to wa.me if server not running
-    if (!p.startsWith('+')) p = '+' + p;
-    const url = 'https://wa.me/' + p.replace('+','') + '?text=' + encodeURIComponent(message);
-    window.open(url, '_blank');
-  }
+  if (!p.startsWith('+')) p = '+' + p;
+  const url = 'https://wa.me/' + p.replace('+','') + '?text=' + encodeURIComponent(message);
+  window.open(url, '_blank');
+}
+
+// إرسال عبر السيرفر (للإرسال للكل)
+async function sendWhatsAppServer(phone, message) {
+  if (!phone) return false;
+  let p = phone.replace(/[\s\-\(\)]/g, '');
+  if (p.startsWith('0')) p = '2' + p;
+  if (!WA_SERVER) throw new Error('لم يتم تحديد رابط السيرفر');
+  const res = await fetch(WA_SERVER + '/send', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ phone: p, message })
+  });
+  const data = await res.json();
+  if (!data.success) throw new Error(data.error);
+  return true;
 }
 
 function sendWhatsAppToParents(student, message) {
@@ -5074,7 +5092,7 @@ function showWAModal(messages, ref) {
 
 let waSentCount = 0;
 
-async function sendSingleWA(idx, target) {
+async function sendSingleWA(idx, target, useServer = false) {
   const m = waMessages[idx];
   let phone;
   if (target === 'father') phone = m.student.father;
@@ -5083,9 +5101,13 @@ async function sendSingleWA(idx, target) {
   if (!phone) return;
 
   const btn = document.getElementById(`wa-btn-${idx}-${target}`);
-  if (btn) { btn.textContent = '⏳ جارٍ...'; btn.disabled = true; }
+  if (btn) { btn.textContent = useServer ? '⏳ جارٍ...' : '⏳'; btn.disabled = true; }
 
-  await sendWhatsApp(phone, m.msg);
+  if (useServer) {
+    await sendWhatsAppServer(phone, m.msg);
+  } else {
+    sendWhatsApp(phone, m.msg);
+  }
 
   if (btn) { btn.textContent = '✅ تم'; btn.style.opacity = '0.6'; }
 
@@ -5109,21 +5131,30 @@ async function sendSingleWA(idx, target) {
 }
 
 async function sendAllWA() {
+  if (!WA_SERVER) {
+    promptServerUrl();
+    if (!WA_SERVER) return;
+  }
   const btn = document.querySelector('[onclick="sendAllWA()"]');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ جارٍ الإرسال...'; }
-  let sent = 0;
+  let sent = 0, failed = 0;
   for (let i = 0; i < waMessages.length; i++) {
     const s = waMessages[i].student;
-    // بعت للأم فقط، لو مفيش أم بعت للأب
     const target = s.mother ? 'mother' : s.father ? 'father' : null;
     if (target) {
-      await sendSingleWA(i, target);
-      sent++;
-      await new Promise(r => setTimeout(r, 8000)); // 8 ثواني delay بين كل رسالة
+      try {
+        await sendSingleWA(i, target, true);
+        sent++;
+        showToast(`✅ ${s.name} (${sent}/${waMessages.length})`, 'success');
+      } catch(e) {
+        failed++;
+        showToast(`⚠️ فشل: ${s.name}`, 'error');
+      }
+      await new Promise(r => setTimeout(r, 8000));
     }
   }
   if (btn) { btn.disabled = false; btn.textContent = '📲 إرسال للكل دفعة واحدة'; }
-  showToast(`✅ تم إرسال ${sent} رسالة بنجاح`, 'success');
+  showToast(`✅ تم: ${sent} نجح${failed ? ' — ' + failed + ' فشل' : ''}`, 'success');
 }
 
 function editStudent(code) {
@@ -5147,11 +5178,7 @@ function saveEditStudent() {
   const emother = document.getElementById('edit-mother').value.trim();
   if (!name) { showToast('اسم الطالب مطلوب', 'error'); return; }
 
-  // لازم رقم الأب أو الأم على الأقل
-  if (!efather && !emother) {
-    showToast('⚠️ لازم رقم الأب أو الأم على الأقل', 'error');
-    return;
-  }
+  // رقم واحد على الأقل كافي (أب أو أم)
 
   // كل رقم لازم 11 رقم بالظبط
   const ePhoneFields = [
