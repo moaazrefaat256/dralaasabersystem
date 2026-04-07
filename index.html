@@ -5478,31 +5478,43 @@ function confirmMsgPicker() {
 }
 
 
+async function sendQROne(s) {
+  const canvas = await _generateQRCanvas(s.code, 400);
+  const dataUrl = canvas.toDataURL('image/png');
+  const base64 = dataUrl.split(',')[1];
+  if (!base64 || base64.length < 100) throw new Error('QR generation failed');
+  const phone = s.mother || s.father;
+  let p = phone.replace(/[\s\-\(\)]/g, '');
+  if (p.startsWith('0')) p = '2' + p;
+  const msg = `📷 بطاقة QR الطالب — Dr. Alaa Saber\n\n👤 الطالب: *${s.name}*\n🔢 الكود: ${s.code}`;
+  const res = await fetch(WA_SERVER + '/send-image', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ phone: p, message: msg, image: base64 })
+  });
+  const data = await res.json();
+  if (!data.success) throw new Error(data.error);
+}
+
 async function sendQRAll() {
   const students = state.students.filter(s => s.mother || s.father);
   if (!students.length) { showToast('لا يوجد طلاب بأرقام', 'error'); return; }
   if (!confirm(`سيتم إرسال QR لـ ${students.length} طالب. هل أنت متأكد؟`)) return;
   showToast(`⏳ جارٍ إرسال QR لـ ${students.length} طالب...`, 'info');
-  let sent = 0;
+  let sent = 0, failed = 0;
   for (const s of students) {
     try {
-      const canvas = await _generateQRCanvas(s.code, 300);
-      const dataUrl = canvas.toDataURL('image/png');
-      const base64 = dataUrl.split(',')[1];
-      const phone = s.mother || s.father;
-      let p = phone.replace(/[\s\-\(\)]/g, '');
-      if (p.startsWith('0')) p = '2' + p;
-      const msg = `📷 بطاقة QR الطالب — Dr. Alaa Saber\n\n👤 الطالب: *${s.name}*\n🔢 الكود: ${s.code}`;
-      await fetch(WA_SERVER + '/send-image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-requested-with': 'XMLHttpRequest' },
-        body: JSON.stringify({ phone: p, message: msg, image: base64 })
-      });
+      await sendQROne(s);
       sent++;
-      await new Promise(r => setTimeout(r, 8000));
-    } catch (e) { console.error(e); }
+      showToast(`✅ ${s.name} (${sent}/${students.length})`, 'success');
+    } catch (e) {
+      failed++;
+      console.error(s.name, e);
+      showToast(`⚠️ فشل إرسال QR لـ ${s.name}`, 'error');
+    }
+    await new Promise(r => setTimeout(r, 8000));
   }
-  showToast(`✅ تم إرسال QR لـ ${sent} طالب`, 'success');
+  showToast(`✅ تم: ${sent} نجح — ${failed} فشل`, 'success');
 }
 
 // Bottom nav active state
