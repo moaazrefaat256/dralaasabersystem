@@ -1615,7 +1615,7 @@ let state = {
     teacherName: 'أ. محمد أحمد',
     notifMethod: 'demo',
     absenceTemplate: '❌ *غياب — Dr. Alaa Saber*\nولي أمر الطالب/ة *{name}*،\nنود إعلامكم بغياب ابنكم/ابنتكم عن {session} بتاريخ {date}.\nنرجو الاهتمام بالحضور المنتظم. 🙏',
-    gradeTemplate: '{quiznote}📝 *نتيجة {quiz} — Dr. Alaa Saber*\nولي أمر الطالب/ة *{name}*،\nالدرجة: *{grade}/{total} ({percent}%)*{studentnote}\n\nللاستفسار يرجى التواصل. 📚',
+    gradeTemplate: '{quiznote}📝 *نتيجة {quiz} — Dr. Alaa Saber*\nولي أمر الطالب/ة *{name}*،\nالدرجة: *{grade}/{total}* ({percent}%){studentnote}\nللاستفسار يرجى التواصل. 📚',
     maxAbsence: 3
   },
   currentSession: null,
@@ -5398,12 +5398,14 @@ function selectMsgType(type) {
       const quiznoteVal = quiz.note ? `📌 ${quiz.note}\n\n` : '';
       const studentNote = state.quizNotes?.[qid]?.[s.code] || '';
       const studentNoteVal = studentNote ? `\n💬 ${studentNote}` : '';
-      preview = `${quiznoteVal}📝 *نتيجة ${quiz.name} — Dr. Alaa Saber*
-
-ولي أمر الطالب/ة *${s.name}*،
-الدرجة: *${g !== undefined ? g : '—'}/${quiz.total}*${pct !== null ? ` (${pct}%)` : ''}${studentNoteVal}
-
-للاستفسار يرجى التواصل. 📚`;
+      preview = state.settings.gradeTemplate
+        .replace('{quiznote}', quiznoteVal)
+        .replace('{quiz}', quiz.name)
+        .replace('{name}', s.name)
+        .replace('{grade}', g !== undefined ? g : '—')
+        .replace('{total}', quiz.total)
+        .replace('{percent}', pct !== null ? pct : '—')
+        .replace('{studentnote}', studentNoteVal);
       if (msgPickerTargets.length > 1) preview += '\n\n(سيتم تخصيص الدرجات لكل طالب)';
     }
   } else if (type === 'session-absence') {
@@ -5413,24 +5415,17 @@ function selectMsgType(type) {
     else {
       const wasAbsent = state.attendance[sid]?.[s.code] === 'absent';
       if (msgPickerTargets.length === 1) {
-        preview = wasAbsent
-          ? `❌ *غياب — Dr. Alaa Saber*
-
-ولي أمر الطالب/ة *${s.name}*،
-نود إعلامكم بغياب ابنكم/ابنتكم عن ${session.name} بتاريخ ${session.date}.
-
-نرجو الاهتمام بالحضور المنتظم. 🙏`
-          : `✅ الطالب ${s.name} كان حاضراً في ${session.name} — لن يتم إرسال رسالة`;
+        const absenceMsg = state.settings.absenceTemplate
+          .replace(/{name}/g, s.name).replace(/{code}/g, s.code)
+          .replace(/{session}/g, session.name).replace(/{date}/g, session.date)
+          .replace(/{absences}/g, getStudentAbsences(s.code));
+        preview = wasAbsent ? absenceMsg : `✅ الطالب ${s.name} كان حاضراً في ${session.name} — لن يتم إرسال رسالة`;
       } else {
         const absentCount = msgPickerTargets.filter(st => state.attendance[sid]?.[st.code] === 'absent').length;
-        preview = `❌ *غياب ${session.name} — Dr. Alaa Saber*
-
-ولي أمر الطالب/ة *{name}*،
-نود إعلامكم بغياب ابنكم/ابنتكم عن ${session.name} بتاريخ ${session.date}.
-
-نرجو الاهتمام بالحضور المنتظم. 🙏
-
-(سيتم الإرسال لـ ${absentCount} طالب غائب فقط)`;
+        preview = state.settings.absenceTemplate
+          .replace(/{name}/g, '{name}').replace(/{code}/g, '{code}')
+          .replace(/{session}/g, session.name).replace(/{date}/g, session.date)
+          .replace(/{absences}/g, '—') + `\n\n(سيتم الإرسال لـ ${absentCount} طالب غائب فقط)`;
       }
     }
   } else if (type === 'custom') {
@@ -5461,25 +5456,25 @@ function buildFinalMsg(type, student) {
     const quiznoteVal = quiz.note ? `📌 ${quiz.note}\n\n` : '';
     const studentNote = state.quizNotes?.[qid]?.[student.code] || '';
     const studentNoteVal = studentNote ? `\n💬 ${studentNote}` : '';
-    return `${quiznoteVal}📝 *نتيجة ${quiz.name} — Dr. Alaa Saber*
-
-ولي أمر الطالب/ة *${student.name}*،
-الدرجة: *${g !== undefined ? g : '—'}/${quiz.total}*${pct !== null ? ` (${pct}%)` : ''}${studentNoteVal}
-
-للاستفسار يرجى التواصل. 📚`;
+    return state.settings.gradeTemplate
+      .replace('{quiznote}', quiznoteVal)
+      .replace('{quiz}', quiz.name)
+      .replace('{name}', student.name)
+      .replace('{grade}', g !== undefined ? g : '—')
+      .replace('{total}', quiz.total)
+      .replace('{percent}', pct !== null ? pct : '—')
+      .replace('{studentnote}', studentNoteVal);
   }
   if (type === 'session-absence') {
     const sid = document.getElementById('msg-picker-session-select').value;
     const session = state.sessions.find(se => se.id === sid);
     if (!session) return '';
     const wasAbsent = state.attendance[sid]?.[student.code] === 'absent';
-    if (!wasAbsent) return null; // skip present students
-    return `❌ *غياب — Dr. Alaa Saber*
-
-ولي أمر الطالب/ة *${student.name}*،
-نود إعلامكم بغياب ابنكم/ابنتكم عن ${session.name} بتاريخ ${session.date}.
-
-نرجو الاهتمام بالحضور المنتظم. 🙏`;
+    if (!wasAbsent) return null;
+    return state.settings.absenceTemplate
+      .replace(/{name}/g, student.name).replace(/{code}/g, student.code)
+      .replace(/{session}/g, session.name).replace(/{date}/g, session.date)
+      .replace(/{absences}/g, getStudentAbsences(student.code));
   }
   if (type === 'custom') {
     const custVal = document.getElementById('msg-picker-custom-input').value;
