@@ -1029,7 +1029,6 @@
           <div style="display:flex;gap:8px;align-items:center">
             <button class="btn btn-success btn-sm" onclick="sendWhatsAppAll()">📲 إرسال للكل</button>
             <button class="btn btn-sm" onclick="promptServerUrl()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text2);font-size:11px">🌐 رابط السيرفر</button>
-            <button class="btn btn-sm" onclick="sendQRAll()" style="background:linear-gradient(135deg,#a855f7,#7c3aed);color:#fff">📷 إرسال QR للجميع</button>
             <button class="btn btn-danger btn-sm" onclick="deleteAllStudents()">🗑️ حذف الكل</button>
             <select id="center-filter" onchange="filterStudents()" style="width:160px;font-size:12px;padding:8px 12px">
               <option value="">كل السنترات</option>
@@ -5092,7 +5091,7 @@ function showWAModal(messages, ref) {
 
 let waSentCount = 0;
 
-async function sendSingleWA(idx, target, useServer = false) {
+async function sendSingleWA(idx, target, useServer = true) {
   const m = waMessages[idx];
   let phone;
   if (target === 'father') phone = m.student.father;
@@ -5270,7 +5269,18 @@ function buildStudentSummaryMsg(s) {
   const attRate = getStudentAttendanceRate(s.code);
   const avg = getStudentAvgGrade(s.code);
 
-  const quizLines = state.quizzes.map(q => {
+  // فلتر المحاضرات حسب سنتر الطالب بس
+  const studentCenter = s.center || '';
+  const relevantSessions = state.sessions.filter(se =>
+    studentCenter ? se.center === studentCenter : !se.center
+  );
+  const relevantTotal = relevantSessions.length;
+
+  // الكويزات بتاعت السنتر بس
+  const relevantQuizzes = state.quizzes.filter(q =>
+    studentCenter ? (q.center || '') === studentCenter : !q.center
+  );
+  const quizLines = relevantQuizzes.map(q => {
     const g = state.grades[q.id]?.[s.code];
     return g !== undefined ? '   • ' + q.name + ': ' + g + '/' + q.total : null;
   }).filter(Boolean).join('\n');
@@ -5278,8 +5288,8 @@ function buildStudentSummaryMsg(s) {
   // اجمع كل النوتات — النوت الدايم + آخر نوت محاضرة
   const pinnedNote = s.pinnedNote || '';
   const lastSessionNote = (() => {
-    for (let i = state.sessions.length - 1; i >= 0; i--) {
-      const sid = state.sessions[i].id;
+    for (let i = relevantSessions.length - 1; i >= 0; i--) {
+      const sid = relevantSessions[i].id;
       const note = state.attendance[sid + '_notes']?.[s.code] || '';
       if (note) return note;
     }
@@ -5295,7 +5305,7 @@ function buildStudentSummaryMsg(s) {
   if (notes.length) msg += '📌 ملاحظة: ' + notes.join(' | ') + '\n';
   msg += '━━━━━━━━━━━━━━━\n';
   msg += '📅 *الحضور*\n';
-  msg += '   • المحاضرات: ' + totalSessions + '\n';
+  msg += '   • المحاضرات: ' + relevantTotal + '\n';
   msg += '   • الغياب: ' + absences + '\n';
   msg += '   • نسبة الحضور: ' + attRate + '%\n';
   if (quizLines) {
