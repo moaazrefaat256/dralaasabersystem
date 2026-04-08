@@ -5134,26 +5134,55 @@ async function sendAllWA() {
     promptServerUrl();
     if (!WA_SERVER) return;
   }
+
+  // تحقق من عدد الأرقام المتاحة لتحديد الـ delay
+  let readyClients = 1;
+  try {
+    const statusRes = await fetch(WA_SERVER + '/status');
+    const statusData = await statusRes.json();
+    readyClients = statusData.ready || 1;
+  } catch(e) {}
+
+  // delay أأمن بناءً على عدد الأرقام
+  // كل رقم يبعت كل 15 ثانية → لو عندك 3 أرقام = delay 5 ثواني بين كل رسالة
+  const DELAY_PER_CLIENT = 15000;
+  const delay = Math.max(5000, Math.floor(DELAY_PER_CLIENT / readyClients));
+  console.log(`📊 أرقام جاهزة: ${readyClients} — delay: ${delay/1000} ثانية`);
+
   const btn = document.querySelector('[onclick="sendAllWA()"]');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ جارٍ الإرسال...'; }
-  let sent = 0, failed = 0;
+
+  let sent = 0, failed = 0, banned = false;
+
   for (let i = 0; i < waMessages.length; i++) {
+    if (banned) break;
     const s = waMessages[i].student;
     const target = s.mother ? 'mother' : s.father ? 'father' : null;
-    if (target) {
-      try {
-        await sendSingleWA(i, target, true);
-        sent++;
-        showToast(`✅ ${s.name} (${sent}/${waMessages.length})`, 'success');
-      } catch(e) {
-        failed++;
-        showToast(`⚠️ فشل: ${s.name}`, 'error');
+    if (!target) continue;
+
+    try {
+      await sendSingleWA(i, target, true);
+      sent++;
+      showToast(`✅ ${s.name} (${sent}/${waMessages.length})`, 'success');
+    } catch(e) {
+      failed++;
+      const errMsg = e?.message || '';
+      // اكتشاف ban أو مشاكل خطيرة
+      if (errMsg.includes('rate') || errMsg.includes('spam') || errMsg.includes('banned') || failed >= 3) {
+        banned = true;
+        showToast('🚨 توقف! يبدو إن في مشكلة مع واتساب — تم إيقاف الإرسال', 'error');
+        break;
       }
-      await new Promise(r => setTimeout(r, 8000));
+      showToast(`⚠️ فشل: ${s.name}`, 'error');
+    }
+
+    if (i < waMessages.length - 1) {
+      await new Promise(r => setTimeout(r, delay));
     }
   }
+
   if (btn) { btn.disabled = false; btn.textContent = '📲 إرسال للكل دفعة واحدة'; }
-  showToast(`✅ تم: ${sent} نجح${failed ? ' — ' + failed + ' فشل' : ''}`, 'success');
+  if (!banned) showToast(`✅ تم: ${sent} نجح${failed ? ' — ' + failed + ' فشل' : ''}`, 'success');
 }
 
 function editStudent(code) {
@@ -5544,7 +5573,7 @@ async function sendQRAll() {
       console.error(s.name, e);
       showToast(`⚠️ فشل إرسال QR لـ ${s.name}`, 'error');
     }
-    await new Promise(r => setTimeout(r, 8000));
+    await new Promise(r => setTimeout(r, 15000));
   }
   showToast(`✅ تم: ${sent} نجح — ${failed} فشل`, 'success');
 }
